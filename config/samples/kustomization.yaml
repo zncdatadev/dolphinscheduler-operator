@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- dolphinscheduler_v1alpha1_dolphinschedulercluster.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples
