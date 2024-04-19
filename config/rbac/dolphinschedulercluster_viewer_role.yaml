@@ -1,0 +1,27 @@
+# permissions for end users to view dolphinschedulerclusters.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: dolphinschedulercluster-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: dolphinscheduler-operator
+    app.kubernetes.io/part-of: dolphinscheduler-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: dolphinschedulercluster-viewer-role
+rules:
+- apiGroups:
+  - dolphinscheduler.zncdata.dev
+  resources:
+  - dolphinschedulerclusters
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - dolphinscheduler.zncdata.dev
+  resources:
+  - dolphinschedulerclusters/status
+  verbs:
+  - get
