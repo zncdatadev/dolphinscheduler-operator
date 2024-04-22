@@ -1,0 +1,50 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+  name: dolphinscheduler-operator.v0.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: DolphinschedulerCluster is the Schema for the dolphinschedulerclusters
+        API
+      displayName: Dolphinscheduler Cluster
+      kind: DolphinschedulerCluster
+      name: dolphinschedulerclusters.dolphinscheduler.zncdata.dev
+      version: v1alpha1
+  description: dolphin scheduler
+  displayName: Dolphin Scheduler
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: true
+    type: OwnNamespace
+  - supported: true
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - dolphinscheduler
+  - operator
+  links:
+  - name: Dolphinscheduler Operator
+    url: https://dolphinscheduler-operator.domain
+  maintainers:
+  - email: lwpk110@163.com
+    name: luwei
+  maturity: alpha
+  provider:
+    name: zmcdata-labs
+    url: https://github.com/zncdata-labs/dolphinscheduler-operator
+  version: 0.0.0

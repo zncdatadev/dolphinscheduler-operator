@@ -1,0 +1,32 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - dolphinscheduler.zncdata.dev
+  resources:
+  - dolphinschedulerclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - dolphinscheduler.zncdata.dev
+  resources:
+  - dolphinschedulerclusters/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - dolphinscheduler.zncdata.dev
+  resources:
+  - dolphinschedulerclusters/status
+  verbs:
+  - get
+  - patch
+  - update
