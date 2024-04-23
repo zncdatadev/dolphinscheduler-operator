@@ -22,8 +22,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+const DolphinCommonPropertiesName = "common.properties"
+
+const (
+	MasterPortName       = "master-port"
+	MasterActualPortName = "master-actual-port"
+	MasterPort           = 5678
+	MasterActualPort     = 5679
+
+	WorkerPortName       = "worker-port"
+	WorkerActualPortName = "worker-actual-port"
+	WorkerPort           = 1234
+	WorkerActualPort     = 1235
+)
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
