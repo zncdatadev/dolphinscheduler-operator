@@ -5,6 +5,7 @@ import (
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"strconv"
 )
 
 func NewMasterContainerBuilder(
@@ -14,13 +15,18 @@ func NewMasterContainerBuilder(
 	resourceSpec *dolphinv1alpha1.ResourcesSpec,
 	envConfigName string,
 	configConfigMapName string,
+	dbSpec *dolphinv1alpha1.DatabaseSpec,
 ) *ContainerBuilder {
+	if dbSpec == nil {
+		panic("dbSpec is nil")
+	}
 	return &ContainerBuilder{
 		ContainerBuilder:        *common.NewContainerBuilder(image, imagePullPolicy),
 		zookeeperDiscoveryZNode: zookeeperDiscoveryZNode,
 		resourceSpec:            resourceSpec,
 		envConfigName:           envConfigName,
 		configConfigMapName:     configConfigMapName,
+		dbSpec:                  dbSpec,
 	}
 }
 
@@ -42,6 +48,7 @@ type ContainerBuilder struct {
 	resourceSpec            *dolphinv1alpha1.ResourcesSpec
 	envConfigName           string
 	configConfigMapName     string
+	dbSpec                  *dolphinv1alpha1.DatabaseSpec
 }
 
 func (c *ContainerBuilder) ContainerPorts() []corev1.ContainerPort {
@@ -72,7 +79,7 @@ func (c *ContainerBuilder) ContainerEnvFromSource() []corev1.EnvFromSource {
 }
 
 func (c *ContainerBuilder) ContainerEnv() []corev1.EnvVar {
-	return []corev1.EnvVar{
+	envs := []corev1.EnvVar{
 		{
 			Name:  "TZ",
 			Value: "Asia/Shanghai",
@@ -80,34 +87,6 @@ func (c *ContainerBuilder) ContainerEnv() []corev1.EnvVar {
 		{
 			Name:  "SPRING_JACKSON_TIME_ZONE",
 			Value: "Asia/Shanghai",
-		},
-		{
-			Name:  "DATABASE",
-			Value: "postgresql",
-		},
-		// todo: use configmap
-		{
-			Name:  "SPRING_DATASOURCE_URL",
-			Value: "jdbc:postgresql://dolphinscheduler-postgresql:5432/dolphinscheduler?characterEncoding=utf8",
-		},
-		{
-			Name:  "SPRING_DATASOURCE_USERNAME",
-			Value: "root",
-		},
-		{
-			Name: "SPRING_DATASOURCE_PASSWORD",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "dolphinscheduler-postgresql",
-					},
-					Key: "postgresql-password",
-				},
-			},
-		},
-		{
-			Name:  "SPRING_DATASOURCE_DRIVER-CLASS-NAME",
-			Value: "org.postgresql.Driver",
 		},
 		{
 			Name:  "REGISTRY_TYPE",
@@ -191,6 +170,52 @@ func (c *ContainerBuilder) ContainerEnv() []corev1.EnvVar {
 		{
 			Name:  "MASTER_TASK_COMMIT_RETRYTIMES",
 			Value: "5",
+		},
+	}
+	envs = append(envs, c.DbEnvs()...)
+	return envs
+}
+
+func (c *ContainerBuilder) DbEnvs() []corev1.EnvVar {
+	inlineDb := c.dbSpec.Inline
+	db := common.DatabaseConfiguration{
+		DbReference: &c.dbSpec.Reference,
+		DbInline: common.NewDatabaseParams(
+			inlineDb.Driver,
+			inlineDb.Username,
+			inlineDb.Password,
+			inlineDb.Host,
+			strconv.Itoa(int(inlineDb.Port)),
+			inlineDb.DatabaseName),
+	}
+	params, err := db.GetDatabaseParams()
+	if err != nil {
+		panic(err)
+	}
+	uri, err := db.GetURI()
+	if err != nil {
+		panic(err)
+	}
+	return []corev1.EnvVar{
+		{
+			Name:  "DATABASE",
+			Value: string(params.DbType),
+		},
+		{
+			Name:  "SPRING_DATASOURCE_URL",
+			Value: uri,
+		},
+		{
+			Name:  "SPRING_DATASOURCE_USERNAME",
+			Value: params.Username,
+		},
+		{
+			Name:  "SPRING_DATASOURCE_PASSWORD",
+			Value: params.Password,
+		},
+		{
+			Name:  "SPRING_DATASOURCE_DRIVER-CLASS-NAME",
+			Value: params.Driver,
 		},
 	}
 }

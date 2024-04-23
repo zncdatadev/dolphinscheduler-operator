@@ -4,7 +4,7 @@ import corev1 "k8s.io/api/core/v1"
 
 type MasterSpec struct {
 	// +kubebuilder:validation:Required
-	ImageSpec `json:"image,omitempty"`
+	Image MasterImageSpec `json:"image,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	Config *ConfigSpec `json:"config,omitempty"`

@@ -2,7 +2,7 @@ package master
 
 import (
 	"context"
-	kafkav1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
+	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/util"
 	appv1 "k8s.io/api/apps/v1"
@@ -15,16 +15,16 @@ import (
 var _ common.StatefulSetResourceType = &StatefulSetReconciler{}
 
 type StatefulSetReconciler struct {
-	common.WorkloadStyleUncheckedReconciler[*kafkav1alpha1.DolphinschedulerCluster, *kafkav1alpha1.RoleGroupSpec]
+	common.WorkloadStyleUncheckedReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec]
 }
 
 func NewStatefulSet(
 	scheme *runtime.Scheme,
-	instance *kafkav1alpha1.DolphinschedulerCluster,
+	instance *dolphinv1alpha1.DolphinschedulerCluster,
 	client client.Client,
 	groupName string,
 	labels map[string]string,
-	mergedCfg *kafkav1alpha1.RoleGroupSpec,
+	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
 	replicate int32,
 ) *StatefulSetReconciler {
 	return &StatefulSetReconciler{
@@ -85,7 +85,7 @@ func (s *StatefulSetReconciler) LogOverride(_ client.Object) {
 }
 
 func (s *StatefulSetReconciler) makeMasterContainer() []corev1.Container {
-	imageSpec := s.Instance.Spec.Image
+	imageSpec := s.Instance.Spec.MasterSpec.Image
 	resourceSpec := s.MergedCfg.Config.Resources
 	zNode := s.Instance.Spec.ClusterConfigSpec.ZookeeperDiscoveryZNode
 	imageName := util.ImageRepository(imageSpec.Repository, imageSpec.Tag)
@@ -98,10 +98,11 @@ func (s *StatefulSetReconciler) makeMasterContainer() []corev1.Container {
 		resourceSpec,
 		envsConfigMapName,
 		configConfigMapName,
+		s.Instance.Spec.ClusterConfigSpec.Database,
 	)
-	kafkaContainer := builder.Build(builder)
+	dolphinContainer := builder.Build(builder)
 	return []corev1.Container{
-		kafkaContainer,
+		dolphinContainer,
 	}
 }
 

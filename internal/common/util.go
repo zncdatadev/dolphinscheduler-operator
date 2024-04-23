@@ -2,7 +2,7 @@ package common
 
 import (
 	"fmt"
-	kafkav1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
+	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	"strings"
@@ -84,11 +84,11 @@ func CreateRoleCfgCacheKey(instanceName string, role Role, groupName string) str
 const (
 	DefaultFileAppender = "FILE"
 	NoneAppender        = "None"
-	ConsoleLogAppender  = "kafkaAppender"
+	ConsoleLogAppender  = "dolphinAppender"
 	FileLogAppender     = NoneAppender
 )
 
-func CreateLog4jBuilder(containerLogging *kafkav1alpha1.LoggingConfigSpec, consoleAppenderName,
+func CreateLog4jBuilder(containerLogging *dolphinv1alpha1.LoggingConfigSpec, consoleAppenderName,
 	fileAppenderName string, fileLogLocation string) *Log4jLoggingDataBuilder {
 	log4jBuilder := &Log4jLoggingDataBuilder{}
 	if loggers := containerLogging.Loggers; loggers != nil {

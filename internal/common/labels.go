@@ -12,7 +12,7 @@ type RoleLabels struct {
 func (r *RoleLabels) GetLabels() map[string]string {
 	res := map[string]string{
 		"app.kubernetes.io/Name":       strings.ToLower(r.InstanceName),
-		"app.kubernetes.io/managed-by": "kafka-operator",
+		"app.kubernetes.io/managed-by": "dolphinscheduler-operator",
 	}
 	if r.Name != "" {
 		res["app.kubernetes.io/component"] = r.Name
