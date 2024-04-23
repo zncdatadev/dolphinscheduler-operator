@@ -12,7 +12,7 @@ import (
 const svcMasterPort = 5678
 const svcActuatorPort = 5679
 
-func NewGroupServiceHeadless(
+func NewMasterServiceHeadless(
 	scheme *runtime.Scheme,
 	instance *dolphinv1alpha1.DolphinschedulerCluster,
 	client client.Client,

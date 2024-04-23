@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ common.StatefulSetResourceType = &StatefulSetReconciler{}
+var _ common.WorkloadResourceType = &StatefulSetReconciler{}
 
 type StatefulSetReconciler struct {
 	common.WorkloadStyleUncheckedReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec]

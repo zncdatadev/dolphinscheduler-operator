@@ -7,24 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type StatefulSetResourceType interface {
-	ResourceBuilder
-	ConditionsGetter
-	WorkloadOverride
-}
-
-type StatefulSetBuilder struct {
-	Name               string
-	NameSpace          string
-	Labels             map[string]string
-	Replicas           int32
-	ServiceName        string
-	ServiceAccountName string
-	Containers         []corev1.Container
-	InitContainers     []corev1.Container
-	Volumes            []VolumeSpec
-	PvcTemplates       []VolumeClaimTemplateSpec
-}
+// statefulSet
 
 func NewStatefulSetBuilder(name string, nameSpace string, labels map[string]string, replicas int32,
 	serviceName string, containers []corev1.Container) *StatefulSetBuilder {
@@ -36,6 +19,25 @@ func NewStatefulSetBuilder(name string, nameSpace string, labels map[string]stri
 		ServiceName: serviceName,
 		Containers:  containers,
 	}
+}
+
+// deployment
+
+func NewDeploymentBuilder(name string, nameSpace string, labels map[string]string, replicas int32,
+	containers []corev1.Container) *StatefulSetBuilder {
+	return &StatefulSetBuilder{
+		Name:       name,
+		NameSpace:  nameSpace,
+		Labels:     labels,
+		Replicas:   replicas,
+		Containers: containers,
+	}
+}
+
+type WorkloadResourceType interface {
+	ResourceBuilder
+	ConditionsGetter
+	WorkloadOverride
 }
 
 type VolumeSourceType string
@@ -148,6 +150,19 @@ type VolumeClaimTemplateSpec struct {
 	PvcSpec
 }
 
+type StatefulSetBuilder struct {
+	Name               string
+	NameSpace          string
+	Labels             map[string]string
+	Replicas           int32
+	ServiceName        string
+	ServiceAccountName string
+	Containers         []corev1.Container
+	InitContainers     []corev1.Container
+	Volumes            []VolumeSpec
+	PvcTemplates       []VolumeClaimTemplateSpec
+}
+
 func (s *StatefulSetBuilder) SetServiceAccountName(saName string) *StatefulSetBuilder {
 	s.ServiceAccountName = saName
 	return s
@@ -244,4 +259,77 @@ func (s *StatefulSetBuilder) createPvcTemplates() []corev1.PersistentVolumeClaim
 		})
 	}
 	return pvcTemplates
+}
+
+type DeploymentBuilder struct {
+	Name               string
+	NameSpace          string
+	Labels             map[string]string
+	Replicas           int32
+	ServiceAccountName string
+	Containers         []corev1.Container
+	InitContainers     []corev1.Container
+	Volumes            []VolumeSpec
+}
+
+func (d *DeploymentBuilder) SetServiceAccountName(saName string) *DeploymentBuilder {
+	d.ServiceAccountName = saName
+	return d
+}
+
+func (d *DeploymentBuilder) SetVolumes(volumes []VolumeSpec) *DeploymentBuilder {
+	d.Volumes = volumes
+	return d
+}
+
+func (d *DeploymentBuilder) SetInitContainers(containers []corev1.Container) *DeploymentBuilder {
+	d.InitContainers = containers
+	return d
+}
+
+func (d *DeploymentBuilder) Build() *appsv1.Deployment {
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      d.Name,
+			Namespace: d.NameSpace,
+			Labels:    d.Labels,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &d.Replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: d.Labels,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: d.Labels,
+				},
+				Spec: corev1.PodSpec{
+					Containers: d.Containers,
+				},
+			},
+		},
+	}
+	if d.ServiceAccountName != "" {
+		deployment.Spec.Template.Spec.ServiceAccountName = d.ServiceAccountName
+	}
+	if len(d.InitContainers) > 0 {
+		deployment.Spec.Template.Spec.InitContainers = d.InitContainers
+	}
+	if len(d.Volumes) > 0 {
+		deployment.Spec.Template.Spec.Volumes = d.createVolumes()
+	}
+	return deployment
+}
+
+// create deployment volumes
+func (d *DeploymentBuilder) createVolumes() []corev1.Volume {
+	volumes := make([]corev1.Volume, 0)
+	for _, v := range d.Volumes {
+		volumeHandler := VolumeTypeHandlers[v.SourceType]
+		volumes = append(volumes, corev1.Volume{
+			Name:         v.Name,
+			VolumeSource: volumeHandler(v.Name, v.Params),
+		})
+	}
+	return volumes
 }

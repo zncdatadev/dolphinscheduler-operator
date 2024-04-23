@@ -6193,21 +6193,78 @@ spec:
                   clusterDomain:
                     default: cluster.local
                     type: string
+                  database:
+                    properties:
+                      inline:
+                        description: DatabaseInlineSpec defines the inline database
+                          spec.
+                        properties:
+                          databaseName:
+                            default: hive
+                            type: string
+                          driver:
+                            default: postgres
+                            enum:
+                            - mysql
+                            - postgres
+                            type: string
+                          host:
+                            type: string
+                          password:
+                            default: hive
+                            type: string
+                          port:
+                            default: 5432
+                            format: int32
+                            type: integer
+                          username:
+                            default: hive
+                            type: string
+                        type: object
+                      reference:
+                        type: string
+                    required:
+                    - reference
+                    type: object
+                  s3Bucket:
+                    properties:
+                      inline:
+                        properties:
+                          accessKey:
+                            type: string
+                          bucket:
+                            type: string
+                          endpoints:
+                            type: string
+                          pathStyle:
+                            default: false
+                            type: boolean
+                          region:
+                            default: us-east-1
+                            type: string
+                          secretKey:
+                            type: string
+                          ssl:
+                            default: false
+                            type: boolean
+                        required:
+                        - bucket
+                        - endpoints
+                        type: object
+                      maxConnect:
+                        default: 20
+                        type: integer
+                      pathStyle_access:
+                        type: boolean
+                      reference:
+                        description: S3 bucket name with S3Bucket
+                        type: string
+                    required:
+                    - maxConnect
+                    - pathStyle_access
+                    - reference
+                    type: object
                   zookeeperDiscoveryZNode:
-                    type: string
-                type: object
-              image:
-                properties:
-                  pullPolicy:
-                    default: IfNotPresent
-                    description: PullPolicy describes a policy for if/when to pull
-                      a container image
-                    type: string
-                  repository:
-                    default: bitnami/kafka
-                    type: string
-                  tag:
-                    default: 3.7.0-debian-12-r2
                     type: string
                 type: object
               master:
@@ -7672,10 +7729,10 @@ spec:
                           pull a container image
                         type: string
                       repository:
-                        default: bitnami/kafka
+                        default: apache/dolphinscheduler-master
                         type: string
                       tag:
-                        default: 3.7.0-debian-12-r2
+                        default: 3.2.1
                         type: string
                     type: object
                   podDisruptionBudget:

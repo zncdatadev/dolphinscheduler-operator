@@ -5,6 +5,7 @@ import (
 	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
+	"strconv"
 	"strings"
 )
 
@@ -124,4 +125,48 @@ func K8sEnvRef(envName string) string {
 
 func LinuxEnvRef(envName string) string {
 	return fmt.Sprintf("$%s", envName)
+}
+
+func MakeDataBaseEnvs(dbSpec *dolphinv1alpha1.DatabaseSpec) []corev1.EnvVar {
+	inlineDb := dbSpec.Inline
+	db := DatabaseConfiguration{
+		DbReference: &dbSpec.Reference,
+		DbInline: NewDatabaseParams(
+			inlineDb.Driver,
+			inlineDb.Username,
+			inlineDb.Password,
+			inlineDb.Host,
+			strconv.Itoa(int(inlineDb.Port)),
+			inlineDb.DatabaseName),
+	}
+	params, err := db.GetDatabaseParams()
+	if err != nil {
+		panic(err)
+	}
+	uri, err := db.GetURI()
+	if err != nil {
+		panic(err)
+	}
+	return []corev1.EnvVar{
+		{
+			Name:  "DATABASE",
+			Value: string(params.DbType),
+		},
+		{
+			Name:  "SPRING_DATASOURCE_URL",
+			Value: uri,
+		},
+		{
+			Name:  "SPRING_DATASOURCE_USERNAME",
+			Value: params.Username,
+		},
+		{
+			Name:  "SPRING_DATASOURCE_PASSWORD",
+			Value: params.Password,
+		},
+		{
+			Name:  "SPRING_DATASOURCE_DRIVER-CLASS-NAME",
+			Value: params.Driver,
+		},
+	}
 }

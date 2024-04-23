@@ -1,4 +1,4 @@
-package worker
+package api
 
 import (
 	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-func NewWorkerContainerBuilder(
+func NewApiContainerBuilder(
 	image string,
 	imagePullPolicy corev1.PullPolicy,
 	zookeeperDiscoveryZNode string,
@@ -29,7 +29,7 @@ func NewWorkerContainerBuilder(
 	}
 }
 
-type ContainerWorkerBuilderType interface {
+type ContainerApiBuilderType interface {
 	common.ContainerName
 	common.ContainerEnv
 	common.ContainerEnvFrom
@@ -39,7 +39,7 @@ type ContainerWorkerBuilderType interface {
 	common.ContainerPorts
 }
 
-var _ ContainerWorkerBuilderType = &ContainerBuilder{}
+var _ ContainerApiBuilderType = &ContainerBuilder{}
 
 type ContainerBuilder struct {
 	common.ContainerBuilder
@@ -53,13 +53,13 @@ type ContainerBuilder struct {
 func (c *ContainerBuilder) ContainerPorts() []corev1.ContainerPort {
 	return []corev1.ContainerPort{
 		{
-			ContainerPort: dolphinv1alpha1.WorkerPort,
-			Name:          dolphinv1alpha1.WorkerPortName,
+			ContainerPort: dolphinv1alpha1.ApiPort,
+			Name:          dolphinv1alpha1.ApiPortName,
 			Protocol:      corev1.ProtocolTCP,
 		},
 		{
-			ContainerPort: dolphinv1alpha1.WorkerActualPort,
-			Name:          dolphinv1alpha1.WorkerActualPortName,
+			ContainerPort: dolphinv1alpha1.ApiPythonPort,
+			Name:          dolphinv1alpha1.ApiPythonPortName,
 			Protocol:      corev1.ProtocolTCP,
 		},
 	}
@@ -103,48 +103,8 @@ func (c *ContainerBuilder) ContainerEnv() []corev1.EnvVar {
 			},
 		},
 		{
-			Name:  "DEFAULT_TENANT_ENABLED",
-			Value: "false",
-		},
-		{
-			Name:  "WORKER_EXEC_THREADS",
-			Value: "100",
-		},
-		{
-			Name:  "WORKER_HOST_WEIGHT",
-			Value: "100",
-		},
-		{
-			Name:  "WORKER_MAX_HEARTBEAT_INTERVAL",
-			Value: "10s",
-		},
-		{
-			Name:  "WORKER_SERVER_LOAD_PROTECTION_ENABLED",
-			Value: "false",
-		},
-		{
-			Name:  "WORKER_SERVER_LOAD_PROTECTION_MAX_DISK_USAGE_PERCENTAGE_THRESHOLDS",
-			Value: "0.7",
-		},
-		{
-			Name:  "WORKER_SERVER_LOAD_PROTECTION_MAX_JVM_CPU_USAGE_PERCENTAGE_THRESHOLDS",
-			Value: "0.7",
-		},
-		{
-			Name:  "WORKER_SERVER_LOAD_PROTECTION_MAX_SYSTEM_CPU_USAGE_PERCENTAGE_THRESHOLDS",
-			Value: "0.7",
-		},
-		{
-			Name:  "WORKER_SERVER_LOAD_PROTECTION_MAX_SYSTEM_MEMORY_USAGE_PERCENTAGE_THRESHOLDS",
-			Value: "0.7",
-		},
-		{
-			Name:  "WORKER_TENANT_CONFIG_AUTO_CREATE_TENANT_ENABLED",
-			Value: "true",
-		},
-		{
-			Name:  "WORKER_TENANT_CONFIG_DISTRIBUTED_TENANT",
-			Value: "false",
+			Name:  "JAVA_OPTS",
+			Value: "-Xms512m -Xmx512m -Xmn256m",
 		},
 	}
 	envs = append(envs, common.MakeDataBaseEnvs(c.dbSpec)...)
@@ -153,10 +113,6 @@ func (c *ContainerBuilder) ContainerEnv() []corev1.EnvVar {
 
 func (c *ContainerBuilder) VolumeMount() []corev1.VolumeMount {
 	return []corev1.VolumeMount{
-		{
-			Name:      workerDataVolumeName(),
-			MountPath: "/tmp/dolphinscheduler",
-		},
 		{
 			Name:      configVolumeName(),
 			MountPath: "/opt/dolphinscheduler/conf/common.properties",
@@ -172,7 +128,7 @@ func (c *ContainerBuilder) LivenessProbe() *corev1.Probe {
 				Command: []string{
 					"curl",
 					"-s",
-					"http://localhost:" + strconv.Itoa(dolphinv1alpha1.WorkerActualPort) + "/actuator/health/liveness",
+					"http://localhost:" + strconv.Itoa(dolphinv1alpha1.ApiPort) + "/dolphinscheduler/actuator/health/liveness",
 				},
 			},
 		},
@@ -191,7 +147,7 @@ func (c *ContainerBuilder) ReadinessProbe() *corev1.Probe {
 				Command: []string{
 					"curl",
 					"-s",
-					"http://localhost:" + strconv.Itoa(dolphinv1alpha1.WorkerActualPort) + "/actuator/health/readiness",
+					"http://localhost:" + strconv.Itoa(dolphinv1alpha1.ApiPort) + "/dolphinscheduler/actuator/health/readiness",
 				},
 			},
 		},
@@ -204,5 +160,5 @@ func (c *ContainerBuilder) ReadinessProbe() *corev1.Probe {
 }
 
 func (c *ContainerBuilder) ContainerName() string {
-	return string(common.Worker)
+	return string(common.Api)
 }

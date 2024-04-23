@@ -5,7 +5,6 @@ import (
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"strconv"
 )
 
 func NewMasterContainerBuilder(
@@ -172,58 +171,14 @@ func (c *ContainerBuilder) ContainerEnv() []corev1.EnvVar {
 			Value: "5",
 		},
 	}
-	envs = append(envs, c.DbEnvs()...)
+	envs = append(envs, common.MakeDataBaseEnvs(c.dbSpec)...)
 	return envs
-}
-
-func (c *ContainerBuilder) DbEnvs() []corev1.EnvVar {
-	inlineDb := c.dbSpec.Inline
-	db := common.DatabaseConfiguration{
-		DbReference: &c.dbSpec.Reference,
-		DbInline: common.NewDatabaseParams(
-			inlineDb.Driver,
-			inlineDb.Username,
-			inlineDb.Password,
-			inlineDb.Host,
-			strconv.Itoa(int(inlineDb.Port)),
-			inlineDb.DatabaseName),
-	}
-	params, err := db.GetDatabaseParams()
-	if err != nil {
-		panic(err)
-	}
-	uri, err := db.GetURI()
-	if err != nil {
-		panic(err)
-	}
-	return []corev1.EnvVar{
-		{
-			Name:  "DATABASE",
-			Value: string(params.DbType),
-		},
-		{
-			Name:  "SPRING_DATASOURCE_URL",
-			Value: uri,
-		},
-		{
-			Name:  "SPRING_DATASOURCE_USERNAME",
-			Value: params.Username,
-		},
-		{
-			Name:  "SPRING_DATASOURCE_PASSWORD",
-			Value: params.Password,
-		},
-		{
-			Name:  "SPRING_DATASOURCE_DRIVER-CLASS-NAME",
-			Value: params.Driver,
-		},
-	}
 }
 
 func (c *ContainerBuilder) VolumeMount() []corev1.VolumeMount {
 	return []corev1.VolumeMount{
 		{
-			Name:      c.configConfigMapName,
+			Name:      configVolumeName(),
 			MountPath: "/opt/dolphinscheduler/conf/common.properties",
 			SubPath:   dolphinv1alpha1.DolphinCommonPropertiesName,
 		},
@@ -236,7 +191,7 @@ func (c *ContainerBuilder) LivenessProbe() *corev1.Probe {
 			HTTPGet: &corev1.HTTPGetAction{
 				Host: "localhost",
 				Path: "/actuator/health/liveness",
-				Port: intstr.FromInt32(5679),
+				Port: intstr.FromInt32(dolphinv1alpha1.MasterActualPort),
 			},
 		},
 		InitialDelaySeconds: 30,
@@ -253,7 +208,7 @@ func (c *ContainerBuilder) ReadinessProbe() *corev1.Probe {
 			HTTPGet: &corev1.HTTPGetAction{
 				Host: "localhost",
 				Path: "/actuator/health/readiness",
-				Port: intstr.FromInt32(5679),
+				Port: intstr.FromInt32(dolphinv1alpha1.MasterActualPort),
 			},
 		},
 		InitialDelaySeconds: 30,

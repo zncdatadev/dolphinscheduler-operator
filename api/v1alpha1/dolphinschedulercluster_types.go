@@ -34,6 +34,16 @@ const (
 	WorkerActualPortName = "worker-actual-port"
 	WorkerPort           = 1234
 	WorkerActualPort     = 1235
+
+	ApiPortName       = "api-port"
+	ApiPythonPortName = "api-python-port"
+	ApiPort           = 12345
+	ApiPythonPort     = 25333
+
+	AlerterPortName       = "alerter-port"
+	AlerterActualPortName = "alerter-actual-port"
+	AlerterPort           = 50052
+	AlerterActualPort     = 50053
 )
 
 //+kubebuilder:object:root=true
@@ -221,7 +231,7 @@ type ConfigSpec struct {
 	StorageClass string `json:"storageClass,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default="8Gi"
+	// +kubebuilder:default="2Gi"
 	StorageSize string `json:"storageSize,omitempty"`
 
 	// +kubebuilder:validation:Optional
