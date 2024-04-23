@@ -73,13 +73,13 @@ type DolphinschedulerClusterSpec struct {
 	ClusterConfigSpec *ClusterConfigSpec `json:"clusterConfig,omitempty"`
 
 	// +kubebuilder:validation:Required
-	MasterSpec *MasterSpec `json:"master,omitempty"`
+	Master *MasterSpec `json:"master,omitempty"`
 
 	// +kubebuilder:validation:Required
-	WorkerSpec *WorkerSpec `json:"worker,omitempty"`
+	Worker *WorkerSpec `json:"worker,omitempty"`
 
 	// +kubebuilder:validation:Required
-	AlerterSpec *AlerterSpec `json:"alerter,omitempty"`
+	Alerter *AlerterSpec `json:"alerter,omitempty"`
 
 	// +kubebuilder:validation:Required
 	Api *ApiSpec `json:"api,omitempty"`

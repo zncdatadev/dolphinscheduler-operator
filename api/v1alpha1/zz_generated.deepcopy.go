@@ -428,18 +428,18 @@ func (in *DolphinschedulerClusterSpec) DeepCopyInto(out *DolphinschedulerCluster
 		*out = new(ClusterConfigSpec)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.MasterSpec != nil {
-		in, out := &in.MasterSpec, &out.MasterSpec
+	if in.Master != nil {
+		in, out := &in.Master, &out.Master
 		*out = new(MasterSpec)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.WorkerSpec != nil {
-		in, out := &in.WorkerSpec, &out.WorkerSpec
+	if in.Worker != nil {
+		in, out := &in.Worker, &out.Worker
 		*out = new(WorkerSpec)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.AlerterSpec != nil {
-		in, out := &in.AlerterSpec, &out.AlerterSpec
+	if in.Alerter != nil {
+		in, out := &in.Alerter, &out.Alerter
 		*out = new(AlerterSpec)
 		(*in).DeepCopyInto(*out)
 	}

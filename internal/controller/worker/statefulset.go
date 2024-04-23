@@ -87,7 +87,7 @@ func (s *StatefulSetReconciler) LogOverride(_ client.Object) {
 }
 
 func (s *StatefulSetReconciler) makeWorkerContainer() []corev1.Container {
-	imageSpec := s.Instance.Spec.WorkerSpec.Image
+	imageSpec := s.Instance.Spec.Worker.Image
 	resourceSpec := s.MergedCfg.Config.Resources
 	zNode := s.Instance.Spec.ClusterConfigSpec.ZookeeperDiscoveryZNode
 	imageName := util.ImageRepository(imageSpec.Repository, imageSpec.Tag)

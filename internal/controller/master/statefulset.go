@@ -85,7 +85,7 @@ func (s *StatefulSetReconciler) LogOverride(_ client.Object) {
 }
 
 func (s *StatefulSetReconciler) makeMasterContainer() []corev1.Container {
-	imageSpec := s.Instance.Spec.MasterSpec.Image
+	imageSpec := s.Instance.Spec.Master.Image
 	resourceSpec := s.MergedCfg.Config.Resources
 	zNode := s.Instance.Spec.ClusterConfigSpec.ZookeeperDiscoveryZNode
 	imageName := util.ImageRepository(imageSpec.Repository, imageSpec.Tag)
