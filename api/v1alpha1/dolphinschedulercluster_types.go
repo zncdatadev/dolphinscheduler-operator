@@ -93,6 +93,10 @@ type ClusterConfigSpec struct {
 	// +kubebuilder:default:="cluster.local"
 	ClusterDomain string `json:"clusterDomain,omitempty"`
 
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:="dolphinscheduler.org"
+	IngressHost string `json:"ingressHost,omitempty"`
+
 	// +kubebuilder:validation:Required
 	ZookeeperDiscoveryZNode string `json:"zookeeperDiscoveryZNode,omitempty"`
 
