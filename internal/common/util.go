@@ -127,7 +127,7 @@ func LinuxEnvRef(envName string) string {
 	return fmt.Sprintf("$%s", envName)
 }
 
-func MakeDataBaseEnvs(dbSpec *dolphinv1alpha1.DatabaseSpec) []corev1.EnvVar {
+func ExtractDataBaseReference(dbSpec *dolphinv1alpha1.DatabaseSpec) (*DatabaseConfiguration, *DatabaseParams) {
 	inlineDb := dbSpec.Inline
 	db := DatabaseConfiguration{
 		DbReference: &dbSpec.Reference,
@@ -143,6 +143,11 @@ func MakeDataBaseEnvs(dbSpec *dolphinv1alpha1.DatabaseSpec) []corev1.EnvVar {
 	if err != nil {
 		panic(err)
 	}
+	return &db, params
+}
+
+func MakeDataBaseEnvs(dbSpec *dolphinv1alpha1.DatabaseSpec) []corev1.EnvVar {
+	db, params := ExtractDataBaseReference(dbSpec)
 	uri, err := db.GetURI()
 	if err != nil {
 		panic(err)

@@ -24,6 +24,8 @@ import (
 
 const DolphinCommonPropertiesName = "common.properties"
 
+const DbInitImage = "apache/dolphinscheduler-tools:3.2.1"
+
 const (
 	MasterPortName       = "master-port"
 	MasterActualPortName = "master-actual-port"

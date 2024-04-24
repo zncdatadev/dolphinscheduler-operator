@@ -15,7 +15,7 @@ import (
 var _ common.WorkloadResourceType = &StatefulSetReconciler{}
 
 type StatefulSetReconciler struct {
-	common.WorkloadStyleUncheckedReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec]
+	common.WorkloadStyleReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec]
 }
 
 func NewStatefulSet(
@@ -28,7 +28,7 @@ func NewStatefulSet(
 	replicate int32,
 ) *StatefulSetReconciler {
 	return &StatefulSetReconciler{
-		WorkloadStyleUncheckedReconciler: *common.NewWorkloadStyleUncheckedReconciler(
+		WorkloadStyleReconciler: *common.NewWorkloadStyleReconciler(
 			scheme,
 			instance,
 			client,

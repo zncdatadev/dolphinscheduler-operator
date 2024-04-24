@@ -171,6 +171,8 @@ func (c *ContainerBuilder) ContainerEnv() []corev1.EnvVar {
 			Value: "5",
 		},
 	}
+
+	// db env
 	envs = append(envs, common.MakeDataBaseEnvs(c.dbSpec)...)
 	return envs
 }

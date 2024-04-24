@@ -8,6 +8,45 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// service builder
+
+func NewServiceBuilder(
+	name string,
+	namespace string,
+	labels map[string]string,
+	ports []corev1.ServicePort,
+) *ServiceBuilder {
+	return &ServiceBuilder{
+		Name:      name,
+		Namespace: namespace,
+		Labels:    labels,
+		Ports:     ports,
+	}
+}
+
+// generic service reconciler
+
+func NewGenericServiceReconciler[T client.Object, G any](
+	scheme *runtime.Scheme,
+	instance T,
+	client client.Client,
+	groupName string,
+	mergedLabels map[string]string,
+	mergedCfg G,
+	svcBuilder *ServiceBuilder,
+) *GenericServiceReconciler[T, G] {
+	return &GenericServiceReconciler[T, G]{
+		GeneralResourceStyleReconciler: *NewGeneraResourceStyleReconciler[T, G](
+			scheme,
+			instance,
+			client,
+			groupName,
+			mergedLabels,
+			mergedCfg),
+		svcBuilder: svcBuilder,
+	}
+}
+
 type SinglePodServiceResourceType interface {
 	MultiResourceReconcilerBuilder
 }
@@ -24,20 +63,6 @@ type ServiceBuilder struct {
 
 	ClusterIP *HeadlessServiceType
 	Type      *corev1.ServiceType
-}
-
-func NewServiceBuilder(
-	name string,
-	namespace string,
-	labels map[string]string,
-	ports []corev1.ServicePort,
-) *ServiceBuilder {
-	return &ServiceBuilder{
-		Name:      name,
-		Namespace: namespace,
-		Labels:    labels,
-		Ports:     ports,
-	}
 }
 
 func (s *ServiceBuilder) SetClusterIP(ip *HeadlessServiceType) *ServiceBuilder {
@@ -91,27 +116,6 @@ const (
 type GenericServiceReconciler[T client.Object, G any] struct {
 	GeneralResourceStyleReconciler[T, G]
 	svcBuilder *ServiceBuilder
-}
-
-func NewGenericServiceReconciler[T client.Object, G any](
-	scheme *runtime.Scheme,
-	instance T,
-	client client.Client,
-	groupName string,
-	mergedLabels map[string]string,
-	mergedCfg G,
-	svcBuilder *ServiceBuilder,
-) *GenericServiceReconciler[T, G] {
-	return &GenericServiceReconciler[T, G]{
-		GeneralResourceStyleReconciler: *NewGeneraResourceStyleReconciler[T, G](
-			scheme,
-			instance,
-			client,
-			groupName,
-			mergedLabels,
-			mergedCfg),
-		svcBuilder: svcBuilder,
-	}
 }
 
 func (s *GenericServiceReconciler[T, G]) Build(_ context.Context) (client.Object, error) {
