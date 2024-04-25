@@ -8,8 +8,28 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+func NewJobInitScriptReconciler(
+	scheme *runtime.Scheme,
+	instance *dolphinv1alpha1.DolphinschedulerCluster,
+	client client.Client,
+	labels map[string]string,
+	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
+) *JobInitScriptReconciler {
+	return &JobInitScriptReconciler{
+		GeneralResourceStyleReconciler: *common.NewGeneraResourceStyleReconciler(
+			scheme,
+			instance,
+			client,
+			"",
+			labels,
+			mergedCfg,
+		),
+	}
+}
 
 var _ common.ResourceBuilder = &JobInitScriptReconciler{}
 

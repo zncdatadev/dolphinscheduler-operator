@@ -18,7 +18,7 @@ type DeploymentReconciler struct {
 	common.WorkloadStyleUncheckedReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec]
 }
 
-func NewStatefulSet(
+func NewDeployment(
 	scheme *runtime.Scheme,
 	instance *dolphinv1alpha1.DolphinschedulerCluster,
 	client client.Client,

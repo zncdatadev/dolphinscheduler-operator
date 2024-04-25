@@ -1,6 +1,9 @@
 package common
 
-import "sync"
+import (
+	"github.com/zncdata-labs/dolphinscheduler-operator/internal/util"
+	"sync"
+)
 
 var MergedCache = NewMapCache()
 
@@ -42,4 +45,19 @@ func ReleaseCache() {
 	defer MergedCache.lock.Unlock()
 
 	MergedCache.data = make(map[string]interface{})
+}
+
+func CreateRoleCfgCacheKey(instanceName string, role Role, groupName string) string {
+	return util.NewResourceNameGenerator(instanceName, string(role), groupName).GenerateResourceName("cache")
+}
+
+func StoreSingleGroupConfig(instanceName string, role Role, groupName string, cfg any) {
+	key := CreateRoleCfgCacheKey(instanceName, role, groupName)
+	MergedCache.Set(key, cfg)
+}
+
+func GetRoleGroup(instanceName string, role Role, groupName string) any {
+	key := CreateRoleCfgCacheKey(instanceName, role, groupName)
+	value, _ := MergedCache.Get(key)
+	return value
 }

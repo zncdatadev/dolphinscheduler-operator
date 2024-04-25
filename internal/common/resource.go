@@ -49,7 +49,7 @@ func (r *ResourceClient) List(obj client.ObjectList) error {
 }
 
 type InstanceAttributes interface {
-	RoleConfigSpec
+	ClusterConfigGetter
 	GetClusterConfig() any
 
 	GetNamespace() string

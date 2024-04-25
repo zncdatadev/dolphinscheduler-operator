@@ -3,7 +3,6 @@ package common
 import (
 	"context"
 	"fmt"
-	"github.com/go-logr/logr"
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/util"
 	"k8s.io/apimachinery/pkg/runtime"
 	"reflect"
@@ -20,48 +19,140 @@ const Alerter Role = "alerter"
 const Api Role = "api"
 
 type RoleReconciler interface {
-	RoleName() Role
+	MergeConfig()
 	ReconcileRole(ctx context.Context) (ctrl.Result, error)
-	CacheRoleGroupConfig()
+}
+
+type RoleHelper interface {
+	MergeConfig() map[string]any
+	RegisterResources(ctx context.Context) map[string][]ResourceReconciler
 }
 
 // RoleGroupRecociler RoleReconcile role reconciler interface
 // all role reconciler should implement this interface
 type RoleGroupRecociler interface {
 	ReconcileGroup(ctx context.Context) (ctrl.Result, error)
-	MergeLabels(mergedGroupCfg any) map[string]string
-	RegisterResource()
 }
 
-type RoleConfigSpec interface {
-	GetRoleConfigSpec(role Role) (any, error)
+type RoleConfiguration struct {
+	Config      any
+	RoleGroups  []string
+	RolePdbSpec *PdbConfig
 }
+
+//new role configuration
+
+func NewRoleConfiguration(config any, roleGroups []string,
+	rolePdbSpec *PdbConfig) *RoleConfiguration {
+	return &RoleConfiguration{
+		Config:      config,
+		RoleGroups:  roleGroups,
+		RolePdbSpec: rolePdbSpec,
+	}
+}
+
+type ClusterConfigGetter interface {
+	GetRoleConfig(role Role) *RoleConfiguration
+}
+
+type RoleConfigGetter interface {
+	Config() any
+}
+
+type RoleGroupConfigGetter interface {
+	Replicas() int32
+	MergedConfig() any
+	GroupPdbSpec() *PdbConfig
+	NodeSelector() map[string]string
+}
+
+var _ RoleReconciler = &BaseRoleReconciler[client.Object]{}
 
 type BaseRoleReconciler[T client.Object] struct {
-	Scheme   *runtime.Scheme
-	Instance T
-	Client   client.Client
-	Log      logr.Logger
-	Labels   map[string]string
-
+	Scheme             *runtime.Scheme
+	Instance           T
+	Client             client.Client
+	RoleLabels         map[string]string
+	InstanceAttributes InstanceAttributes
+	RoleHelper
 	Role Role
 }
 
-func (r *BaseRoleReconciler[T]) GetLabels() map[string]string {
-	roleLables := RoleLabels{InstanceName: r.Instance.GetName(), Name: string(r.Role)}
-	mergeLabels := roleLables.GetLabels()
-	return mergeLabels
+func NewBaseRoleReconciler[T client.Object](scheme *runtime.Scheme, instance T, client client.Client, role Role,
+	roleLabels map[string]string, instanceAttributes InstanceAttributes, helper RoleHelper) *BaseRoleReconciler[T] {
+	return &BaseRoleReconciler[T]{
+		Scheme:             scheme,
+		Instance:           instance,
+		Client:             client,
+		InstanceAttributes: instanceAttributes,
+		Role:               role,
+		RoleLabels:         roleLabels,
+		RoleHelper:         helper,
+	}
+}
+
+func (r *BaseRoleReconciler[T]) MergeConfig() {
+	mergedCfgs := r.RoleHelper.MergeConfig()
+	for groupName, cfg := range mergedCfgs {
+		StoreSingleGroupConfig(r.Instance.GetName(), r.Role, groupName, cfg)
+	}
+}
+
+//func (r *BaseRoleReconciler[T]) RoleLabels() map[string]string {
+//	roleLables := RoleLabels{InstanceName: r.Instance.GetName(), Name: string(r.Role)}
+//	mergeLabels := roleLables.GetLabels()
+//	return mergeLabels
+//}
+
+func (r *BaseRoleReconciler[T]) ReconcileRole(ctx context.Context) (ctrl.Result, error) {
+	roleCfg := r.InstanceAttributes.GetRoleConfig(r.Role)
+	// role pdb
+	if roleCfg.Config != nil && roleCfg.RolePdbSpec != nil {
+		pdb := NewReconcilePDB(r.Client, r.Scheme, r.Instance, r.RoleLabels, string(r.Role), roleCfg.RolePdbSpec)
+		res, err := pdb.ReconcileResource(ctx, NewSingleResourceBuilder(pdb))
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if res.RequeueAfter > 0 {
+			return res, nil
+		}
+	}
+	// reconciler groups
+	for _, name := range roleCfg.RoleGroups {
+		resourceReconcilers := r.RoleHelper.RegisterResources(ctx)
+		groupResources := resourceReconcilers[name]
+		groupReconciler := NewBaseRoleGroupReconciler(r.Scheme, r.Instance, r.Client, r.Role, name, groupResources)
+		res, err := groupReconciler.ReconcileGroup(ctx)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if res.RequeueAfter > 0 {
+			return res, nil
+		}
+	}
+	return ctrl.Result{}, nil
 }
 
 type BaseRoleGroupReconciler[T client.Object] struct {
-	Scheme     *runtime.Scheme
-	Instance   T
-	Client     client.Client
-	GroupName  string
-	RoleLabels map[string]string
-	Log        logr.Logger
+	Scheme    *runtime.Scheme
+	Instance  T
+	Client    client.Client
+	Role      Role
+	GroupName string
 
 	Reconcilers []ResourceReconciler
+}
+
+func NewBaseRoleGroupReconciler[T client.Object](scheme *runtime.Scheme, instance T, client client.Client, role Role,
+	groupName string, resourceReconcilers []ResourceReconciler) *BaseRoleGroupReconciler[T] {
+	return &BaseRoleGroupReconciler[T]{
+		Scheme:      scheme,
+		Instance:    instance,
+		Client:      client,
+		Role:        role,
+		GroupName:   groupName,
+		Reconcilers: resourceReconcilers,
+	}
 }
 
 func ReconcilerDoHandler(ctx context.Context, reconcilers []ResourceReconciler) (ctrl.Result, error) {
@@ -91,18 +182,8 @@ func ReconcilerDoHandler(ctx context.Context, reconcilers []ResourceReconciler) 
 }
 
 // ReconcileGroup ReconcileRole implements the Role interface
-func (m *BaseRoleGroupReconciler[T]) ReconcileGroup(ctx context.Context) (ctrl.Result, error) {
-	return ReconcilerDoHandler(ctx, m.Reconcilers)
-}
-
-// AppendLabels  merge role labels and additional labels
-func (m *BaseRoleGroupReconciler[T]) AppendLabels(additionalLabels map[string]string) map[string]string {
-	roleLabels := m.RoleLabels
-	mergeLabels := make(util.Map)
-	mergeLabels.MapMerge(roleLabels, true)
-	mergeLabels.MapMerge(additionalLabels, true)
-	mergeLabels["app.kubernetes.io/instance"] = strings.ToLower(m.GroupName)
-	return mergeLabels
+func (g *BaseRoleGroupReconciler[T]) ReconcileGroup(ctx context.Context) (ctrl.Result, error) {
+	return ReconcilerDoHandler(ctx, g.Reconcilers)
 }
 
 // MergeObjects merge right to left, if field not in left, it will be added from right,
@@ -148,4 +229,22 @@ func contains(slice []string, str string) bool {
 		}
 	}
 	return false
+}
+
+type RoleLabelHelper struct {
+}
+
+func (h *RoleLabelHelper) GroupLabels(roleLabels map[string]string, groupName string,
+	nodeSelector map[string]string) map[string]string {
+	mergeLabels := make(util.Map)
+	mergeLabels.MapMerge(roleLabels, true)
+	mergeLabels.MapMerge(nodeSelector, true)
+	mergeLabels["app.kubernetes.io/instance"] = strings.ToLower(groupName)
+	return mergeLabels
+}
+
+func (h *RoleLabelHelper) RoleLabels(instanceName string, role Role) map[string]string {
+	roleLabels := RoleLabels{InstanceName: instanceName, Name: string(role)}
+	mergeLabels := roleLabels.GetLabels()
+	return mergeLabels
 }

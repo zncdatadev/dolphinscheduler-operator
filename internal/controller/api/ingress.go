@@ -6,8 +6,29 @@ import (
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
 	v1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+func NewIngress(
+	scheme *runtime.Scheme,
+	instance *dolphinv1alpha1.DolphinschedulerCluster,
+	client client.Client,
+	groupName string,
+	labels map[string]string,
+	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
+) *IngressReconciler {
+	return &IngressReconciler{
+		GeneralResourceStyleReconciler: *common.NewGeneraResourceStyleReconciler(
+			scheme,
+			instance,
+			client,
+			groupName,
+			labels,
+			mergedCfg,
+		),
+	}
+}
 
 var _ common.ResourceBuilder = &IngressReconciler{}
 

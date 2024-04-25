@@ -1440,7 +1440,7 @@ spec:
                       storageClass:
                         type: string
                       storageSize:
-                        default: 8Gi
+                        default: 2Gi
                         type: string
                       tolerations:
                         items:
@@ -3053,7 +3053,7 @@ spec:
                             storageClass:
                               type: string
                             storageSize:
-                              default: 8Gi
+                              default: 2Gi
                               type: string
                             tolerations:
                               items:
@@ -4516,7 +4516,7 @@ spec:
                       storageClass:
                         type: string
                       storageSize:
-                        default: 8Gi
+                        default: 2Gi
                         type: string
                       tolerations:
                         items:
@@ -6129,7 +6129,7 @@ spec:
                             storageClass:
                               type: string
                             storageSize:
-                              default: 8Gi
+                              default: 2Gi
                               type: string
                             tolerations:
                               items:
@@ -6226,6 +6226,9 @@ spec:
                     required:
                     - reference
                     type: object
+                  ingressHost:
+                    default: dolphinscheduler.org
+                    type: string
                   s3Bucket:
                     properties:
                       inline:
@@ -7671,7 +7674,7 @@ spec:
                       storageClass:
                         type: string
                       storageSize:
-                        default: 8Gi
+                        default: 2Gi
                         type: string
                       tolerations:
                         items:
@@ -9284,7 +9287,7 @@ spec:
                             storageClass:
                               type: string
                             storageSize:
-                              default: 8Gi
+                              default: 2Gi
                               type: string
                             tolerations:
                               items:
@@ -10747,7 +10750,7 @@ spec:
                       storageClass:
                         type: string
                       storageSize:
-                        default: 8Gi
+                        default: 2Gi
                         type: string
                       tolerations:
                         items:
@@ -12360,7 +12363,7 @@ spec:
                             storageClass:
                               type: string
                             storageSize:
-                              default: 8Gi
+                              default: 2Gi
                               type: string
                             tolerations:
                               items:
