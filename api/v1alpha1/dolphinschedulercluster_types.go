@@ -22,8 +22,31 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+const DolphinCommonPropertiesName = "common.properties"
+
+const DbInitImage = "apache/dolphinscheduler-tools:3.2.1"
+
+const (
+	MasterPortName       = "master-port"
+	MasterActualPortName = "master-actual-port"
+	MasterPort           = 5678
+	MasterActualPort     = 5679
+
+	WorkerPortName       = "worker-port"
+	WorkerActualPortName = "worker-actual-port"
+	WorkerPort           = 1234
+	WorkerActualPort     = 1235
+
+	ApiPortName       = "api-port"
+	ApiPythonPortName = "api-python-port"
+	ApiPort           = 12345
+	ApiPythonPort     = 25333
+
+	AlerterPortName       = "alerter-port"
+	AlerterActualPortName = "alerter-actual-port"
+	AlerterPort           = 50052
+	AlerterActualPort     = 50053
+)
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
@@ -48,35 +71,20 @@ type DolphinschedulerClusterList struct {
 
 // DolphinschedulerClusterSpec defines the desired state of DolphinschedulerCluster
 type DolphinschedulerClusterSpec struct {
-	// +kubebuilder:validation:required
-	Image ImageSpec `json:"image,omitempty"`
-
 	// +kubebuilder:validation:Required
 	ClusterConfigSpec *ClusterConfigSpec `json:"clusterConfig,omitempty"`
 
 	// +kubebuilder:validation:Required
-	MasterSpec *MasterSpec `json:"master,omitempty"`
+	Master *MasterSpec `json:"master,omitempty"`
 
 	// +kubebuilder:validation:Required
-	WorkerSpec *WorkerSpec `json:"worker,omitempty"`
+	Worker *WorkerSpec `json:"worker,omitempty"`
 
 	// +kubebuilder:validation:Required
-	AlerterSpec *AlerterSpec `json:"alerter,omitempty"`
+	Alerter *AlerterSpec `json:"alerter,omitempty"`
 
 	// +kubebuilder:validation:Required
 	Api *ApiSpec `json:"api,omitempty"`
-}
-
-type ImageSpec struct {
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default=bitnami/kafka
-	Repository string `json:"repository,omitempty"`
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default:="3.7.0-debian-12-r2"
-	Tag string `json:"tag,omitempty"`
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default:=IfNotPresent
-	PullPolicy corev1.PullPolicy `json:"pullPolicy,omitempty"`
 }
 
 type ClusterConfigSpec struct {
@@ -85,8 +93,95 @@ type ClusterConfigSpec struct {
 	// +kubebuilder:default:="cluster.local"
 	ClusterDomain string `json:"clusterDomain,omitempty"`
 
-	// +kubebuilder:validation:required
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:="dolphinscheduler.org"
+	IngressHost string `json:"ingressHost,omitempty"`
+
+	// +kubebuilder:validation:Required
 	ZookeeperDiscoveryZNode string `json:"zookeeperDiscoveryZNode,omitempty"`
+
+	// +kubebuilder:validation:Required
+	S3Bucket *S3BucketSpec `json:"s3Bucket,omitempty"`
+
+	// +kubebuilder:validation:Required
+	Database *DatabaseSpec `json:"database,omitempty"`
+}
+
+type DatabaseSpec struct {
+	// +kubebuilder:validation=Optional
+	Reference string `json:"reference"`
+
+	// +kubebuilder:validation=Optional
+	Inline *DatabaseInlineSpec `json:"inline,omitempty"`
+}
+
+// DatabaseInlineSpec defines the inline database spec.
+type DatabaseInlineSpec struct {
+	// +kubebuilder:validation:Enum=mysql;postgres
+	// +kubebuilder:default="postgres"
+	Driver string `json:"driver,omitempty"`
+
+	// +kubebuilder:validation=Optional
+	// +kubebuilder:default="hive"
+	DatabaseName string `json:"databaseName,omitempty"`
+
+	// +kubebuilder:validation=Optional
+	// +kubebuilder:default="hive"
+	Username string `json:"username,omitempty"`
+
+	// +kubebuilder:validation=Optional
+	// +kubebuilder:default="hive"
+	Password string `json:"password,omitempty"`
+
+	// +kubebuilder:validation=Required
+	Host string `json:"host,omitempty"`
+
+	// +kubebuilder:validation=Optional
+	// +kubebuilder:default=5432
+	Port int32 `json:"port,omitempty"`
+}
+
+type S3BucketSpec struct {
+	// S3 bucket name with S3Bucket
+	// +kubebuilder:validation=Optional
+	Reference *string `json:"reference"`
+
+	// +kubebuilder:validation=Optional
+	Inline *S3BucketInlineSpec `json:"inline,omitempty"`
+
+	// +kubebuilder:validation=Optional
+	// +kubebuilder:default=20
+	MaxConnect int `json:"maxConnect"`
+
+	// +kubebuilder:validation=Optional
+	PathStyleAccess bool `json:"pathStyle_access"`
+}
+
+type S3BucketInlineSpec struct {
+
+	// +kubeBuilder:validation=Required
+	Bucket string `json:"bucket"`
+
+	// +kubebuilder:validation=Optional
+	// +kubebuilder:default="us-east-1"
+	Region string `json:"region,omitempty"`
+
+	// +kubebuilder:validation=Required
+	Endpoints string `json:"endpoints"`
+
+	// +kubebuilder:validation=Optional
+	// +kubebuilder:default=false
+	SSL bool `json:"ssl,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	PathStyle bool `json:"pathStyle,omitempty"`
+
+	// +kubebuilder:validation=Optional
+	AccessKey string `json:"accessKey,omitempty"`
+
+	// +kubebuilder:validation=Optional
+	SecretKey string `json:"secretKey,omitempty"`
 }
 
 type ContainerLoggingSpec struct {
@@ -142,7 +237,7 @@ type ConfigSpec struct {
 	StorageClass string `json:"storageClass,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default="8Gi"
+	// +kubebuilder:default="2Gi"
 	StorageSize string `json:"storageSize,omitempty"`
 
 	// +kubebuilder:validation:Optional
