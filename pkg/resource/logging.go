@@ -1,13 +1,21 @@
-package common
+package resource
 
 import (
 	"context"
 	"fmt"
-	"github.com/zncdata-labs/dolphinscheduler-operator/internal/util"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	DefaultFileAppender = "FILE"
+	NoneAppender        = "None"
+	//ConsoleLogAppender  = "dolphinAppender"
+	//FileLogAppender     = NoneAppender
 )
 
 type RoleLoggingDataBuilder interface {
@@ -19,7 +27,7 @@ type OverrideExistLogging interface {
 }
 
 type BaseRoleLoggingDataBuilder struct {
-	Role Role
+	Role core.Role
 }
 
 func (b *BaseRoleLoggingDataBuilder) MakeContainerLogData() map[string]string {
@@ -28,10 +36,10 @@ func (b *BaseRoleLoggingDataBuilder) MakeContainerLogData() map[string]string {
 }
 
 type LoggingRecociler[T client.Object, G any] struct {
-	GeneralResourceStyleReconciler[T, G]
+	core.GeneralResourceStyleReconciler[T, G]
 	RoleLoggingDataBuilder RoleLoggingDataBuilder
-	role                   Role
-	InstanceGetter         InstanceAttributes
+	role                   core.Role
+	InstanceGetter         core.InstanceAttributes
 	ConfigmapName          string
 }
 
@@ -44,11 +52,11 @@ func NewLoggingReconciler[T client.Object](
 	mergedLabels map[string]string,
 	mergedCfg any,
 	logDataBuilder RoleLoggingDataBuilder,
-	role Role,
+	role core.Role,
 	configmapName string,
 ) *LoggingRecociler[T, any] {
 	return &LoggingRecociler[T, any]{
-		GeneralResourceStyleReconciler: *NewGeneraResourceStyleReconciler(
+		GeneralResourceStyleReconciler: *core.NewGeneraResourceStyleReconciler(
 			scheme,
 			instance,
 			client,
@@ -82,7 +90,7 @@ func (l *LoggingRecociler[T, G]) Build(_ context.Context) (client.Object, error)
 // OverrideExistLoggingRecociler override exist logging config reconciler
 // if log properties exist in some configmap, we need to override it
 type OverrideExistLoggingRecociler[T client.Object, G any] struct {
-	GeneralResourceStyleReconciler[T, G]
+	core.GeneralResourceStyleReconciler[T, G]
 	RoleLoggingDataBuilder RoleLoggingDataBuilder
 }
 
@@ -97,7 +105,7 @@ func NewOverrideExistLoggingRecociler[T client.Object](
 	logDataBuilder RoleLoggingDataBuilder,
 ) *OverrideExistLoggingRecociler[T, any] {
 	return &OverrideExistLoggingRecociler[T, any]{
-		GeneralResourceStyleReconciler: *NewGeneraResourceStyleReconciler(
+		GeneralResourceStyleReconciler: *core.NewGeneraResourceStyleReconciler(
 			scheme,
 			instance,
 			client,
@@ -124,14 +132,14 @@ type LoggingPluggingDataBuilder interface {
 }
 
 type LogBuilderLoggers struct {
-	logger string
-	level  string
+	Logger string
+	Level  string
 }
 
 type LogBuilderAppender struct {
-	appenderName       string
-	level              string
-	defaultLogLocation string
+	AppenderName       string
+	Level              string
+	DefaultLogLocation string
 }
 
 type Log4jLoggingDataBuilder struct {
@@ -173,8 +181,8 @@ func (l *Log4jLoggingDataBuilder) makeCustomLoggersProperties() []util.NameValue
 	properties := make([]util.NameValuePair, 0)
 	for _, logger := range l.Loggers {
 		properties = append(properties, util.NameValuePair{
-			Name:  "log4j.logger." + logger.logger,
-			Value: logger.level,
+			Name:  "log4j.logger." + logger.Logger,
+			Value: logger.Level,
 		})
 	}
 	return properties
@@ -187,10 +195,10 @@ func (l *Log4jLoggingDataBuilder) makeConsoleLoggerProperties() []util.NameValue
 		return nil
 	}
 	properties := make([]util.NameValuePair, 0)
-	key := fmt.Sprintf("log4j.appender.%s.Threshold", l.Console.appenderName)
+	key := fmt.Sprintf("log4j.appender.%s.Threshold", l.Console.AppenderName)
 	properties = append(properties, util.NameValuePair{
 		Name:  key,
-		Value: l.Console.level,
+		Value: l.Console.Level,
 	})
 	return properties
 }
@@ -201,15 +209,15 @@ func (l *Log4jLoggingDataBuilder) makeFileLoggerProperties() []util.NameValuePai
 	if l.File == nil {
 		return nil
 	}
-	fileAppender := l.File.appenderName
+	fileAppender := l.File.AppenderName
 	properties := make([]util.NameValuePair, 0)
 	// if file appender not exists, create new default one
 	if fileAppender == NoneAppender {
 		fileAppender = DefaultFileAppender
 		properties = l.MakeDefaultFileAppenderProperties(fileAppender)
 	} else {
-		key := fmt.Sprintf("log4j.appender.%s.Threshold", l.File.appenderName)
-		properties = append(properties, util.NameValuePair{Name: key, Value: l.File.level})
+		key := fmt.Sprintf("log4j.appender.%s.Threshold", l.File.AppenderName)
+		properties = append(properties, util.NameValuePair{Name: key, Value: l.File.Level})
 	}
 	return properties
 }
@@ -218,11 +226,11 @@ func (l *Log4jLoggingDataBuilder) MakeDefaultFileAppenderProperties(fileAppender
 	prefix := fmt.Sprintf("log4j.appender.%s", fileAppender)
 	properties := make([]util.NameValuePair, 0)
 	properties = append(properties, util.NameValuePair{Name: prefix, Value: "org.apache.log4j.RollingFileAppender"})
-	properties = append(properties, util.NameValuePair{Name: prefix + ".Threshold", Value: l.Console.level})
+	properties = append(properties, util.NameValuePair{Name: prefix + ".Threshold", Value: l.Console.Level})
 	properties = append(properties, util.NameValuePair{Name: prefix + ".MaxFileSize", Value: "5MB"})
 	properties = append(properties, util.NameValuePair{Name: prefix + ".MaxBackupIndex", Value: "1"})
 	properties = append(properties, util.NameValuePair{Name: prefix + ".layout", Value: "org.apache.log4j.PatternLayout"})
 	properties = append(properties, util.NameValuePair{Name: prefix + ".layout.ConversionPattern", Value: "%d{ISO8601} %-5p %c{2} (%F:%M(%L)) - %m%n"})
-	properties = append(properties, util.NameValuePair{Name: prefix + ".File", Value: l.File.defaultLogLocation})
+	properties = append(properties, util.NameValuePair{Name: prefix + ".File", Value: l.File.DefaultLogLocation})
 	return properties
 }

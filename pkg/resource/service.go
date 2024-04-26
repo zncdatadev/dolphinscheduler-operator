@@ -1,7 +1,8 @@
-package common
+package resource
 
 import (
 	"context"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,7 +37,7 @@ func NewGenericServiceReconciler[T client.Object, G any](
 	svcBuilder *ServiceBuilder,
 ) *GenericServiceReconciler[T, G] {
 	return &GenericServiceReconciler[T, G]{
-		GeneralResourceStyleReconciler: *NewGeneraResourceStyleReconciler[T, G](
+		GeneralResourceStyleReconciler: *core.NewGeneraResourceStyleReconciler[T, G](
 			scheme,
 			instance,
 			client,
@@ -48,7 +49,7 @@ func NewGenericServiceReconciler[T client.Object, G any](
 }
 
 type SinglePodServiceResourceType interface {
-	MultiResourceReconcilerBuilder
+	core.MultiResourceReconcilerBuilder
 }
 
 // ServiceBuilder service builder
@@ -114,7 +115,7 @@ const (
 )
 
 type GenericServiceReconciler[T client.Object, G any] struct {
-	GeneralResourceStyleReconciler[T, G]
+	core.GeneralResourceStyleReconciler[T, G]
 	svcBuilder *ServiceBuilder
 }
 

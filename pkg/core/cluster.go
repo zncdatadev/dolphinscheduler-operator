@@ -1,4 +1,4 @@
-package common
+package core
 
 import (
 	"context"
@@ -46,7 +46,7 @@ func (c *ClusterReconciler) ReconcileCluster(ctx context.Context) (ctrl.Result, 
 
 	// reconcile resource of cluster level
 	if resources := c.ClusterReconcileRequirement.RegisterResources(); len(resources) > 0 {
-		res, err := ReconcilerDoHandler(ctx, resources)
+		res, err := ReconcilersDoReconcile(ctx, resources)
 		if err != nil {
 			return ctrl.Result{}, err
 		}

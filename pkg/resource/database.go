@@ -1,7 +1,8 @@
-package common
+package resource
 
 import (
 	"fmt"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	commonsv1alph1 "github.com/zncdata-labs/operator-go/pkg/apis/commons/v1alpha1"
 	"github.com/zncdata-labs/operator-go/pkg/util"
 	corev1 "k8s.io/api/core/v1"
@@ -73,7 +74,7 @@ func NewDatabaseParams(
 type DatabaseConfiguration struct {
 	DbReference    *string
 	DbInline       *DatabaseParams
-	ResourceClient ResourceClient
+	ResourceClient core.ResourceClient
 }
 
 func (d *DatabaseConfiguration) GetRefDatabaseName() string {

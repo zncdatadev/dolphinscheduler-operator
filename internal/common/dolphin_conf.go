@@ -1,8 +1,11 @@
 package common
 
-import dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
+import (
+	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
+)
 
-var _ EnvGenerator = &EnvPropertiesGenerator{}
+var _ resource.EnvGenerator = &EnvPropertiesGenerator{}
 
 type EnvPropertiesGenerator struct {
 }
@@ -23,7 +26,7 @@ func (e EnvPropertiesGenerator) Generate() map[string]string {
 	}
 }
 
-var _ FileContentGenerator = &ConfigPropertiesGenerator{}
+var _ resource.FileContentGenerator = &ConfigPropertiesGenerator{}
 
 type ConfigPropertiesGenerator struct {
 }

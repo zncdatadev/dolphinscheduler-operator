@@ -1,6 +1,7 @@
-package common
+package resource
 
 import (
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	commonsv1alpha1 "github.com/zncdata-labs/operator-go/pkg/apis/commons/v1alpha1"
 	"github.com/zncdata-labs/operator-go/pkg/util"
 	corev1 "k8s.io/api/core/v1"
@@ -25,7 +26,7 @@ type S3Params struct {
 type S3Configuration struct {
 	S3Reference    *string
 	S3Inline       *S3Params
-	ResourceClient ResourceClient
+	ResourceClient core.ResourceClient
 }
 
 func (s *S3Configuration) GetRefBucketName() string {

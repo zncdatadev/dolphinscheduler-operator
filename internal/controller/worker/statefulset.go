@@ -4,7 +4,9 @@ import (
 	"context"
 	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
-	"github.com/zncdata-labs/dolphinscheduler-operator/internal/util"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/util"
 	appv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,10 +14,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ common.WorkloadResourceType = &StatefulSetReconciler{}
+var _ resource.WorkloadResourceType = &StatefulSetReconciler{}
 
 type StatefulSetReconciler struct {
-	common.WorkloadStyleReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec]
+	core.WorkloadStyleReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec]
 }
 
 func NewStatefulSet(
@@ -28,7 +30,7 @@ func NewStatefulSet(
 	replicate int32,
 ) *StatefulSetReconciler {
 	return &StatefulSetReconciler{
-		WorkloadStyleReconciler: *common.NewWorkloadStyleReconciler(
+		WorkloadStyleReconciler: *core.NewWorkloadStyleReconciler(
 			scheme,
 			instance,
 			client,
@@ -41,7 +43,7 @@ func NewStatefulSet(
 }
 
 func (s *StatefulSetReconciler) Build(_ context.Context) (client.Object, error) {
-	builder := common.NewStatefulSetBuilder(
+	builder := resource.NewStatefulSetBuilder(
 		createStatefulSetName(s.Instance.GetName(), s.GroupName),
 		s.Instance.Namespace,
 		s.Labels,
@@ -55,12 +57,12 @@ func (s *StatefulSetReconciler) Build(_ context.Context) (client.Object, error) 
 	return builder.Build(), nil
 }
 
-func (s *StatefulSetReconciler) CommandOverride(resource client.Object) {
-	dep := resource.(*appv1.StatefulSet)
+func (s *StatefulSetReconciler) CommandOverride(obj client.Object) {
+	dep := obj.(*appv1.StatefulSet)
 	containers := dep.Spec.Template.Spec.Containers
 	if cmdOverride := s.MergedCfg.CommandArgsOverrides; cmdOverride != nil {
 		for i := range containers {
-			if containers[i].Name == string(common.Worker) {
+			if containers[i].Name == string(core.Worker) {
 				containers[i].Command = cmdOverride
 				break
 			}
@@ -68,12 +70,12 @@ func (s *StatefulSetReconciler) CommandOverride(resource client.Object) {
 	}
 }
 
-func (s *StatefulSetReconciler) EnvOverride(resource client.Object) {
-	dep := resource.(*appv1.StatefulSet)
+func (s *StatefulSetReconciler) EnvOverride(obj client.Object) {
+	dep := obj.(*appv1.StatefulSet)
 	containers := dep.Spec.Template.Spec.Containers
 	if envOverride := s.MergedCfg.EnvOverrides; envOverride != nil {
 		for i := range containers {
-			if containers[i].Name == string(common.Worker) {
+			if containers[i].Name == string(core.Worker) {
 				envVars := containers[i].Env
 				common.OverrideEnvVars(&envVars, s.MergedCfg.EnvOverrides)
 				break
@@ -109,13 +111,13 @@ func (s *StatefulSetReconciler) makeWorkerContainer() []corev1.Container {
 }
 
 // make volumes
-func (s *StatefulSetReconciler) volumes() []common.VolumeSpec {
-	return []common.VolumeSpec{
+func (s *StatefulSetReconciler) volumes() []resource.VolumeSpec {
+	return []resource.VolumeSpec{
 		{
 			Name:       configVolumeName(),
-			SourceType: common.ConfigMap,
-			Params: &common.VolumeSourceParams{
-				ConfigMap: common.ConfigMapSpec{
+			SourceType: resource.ConfigMap,
+			Params: &resource.VolumeSourceParams{
+				ConfigMap: resource.ConfigMapSpec{
 					Name: common.ConfigConfigMapName(s.Instance.GetName(), s.GroupName),
 				}},
 		},
@@ -123,11 +125,11 @@ func (s *StatefulSetReconciler) volumes() []common.VolumeSpec {
 }
 
 // make pvc templates
-func (s *StatefulSetReconciler) pvcTemplates() []common.VolumeClaimTemplateSpec {
-	return []common.VolumeClaimTemplateSpec{
+func (s *StatefulSetReconciler) pvcTemplates() []resource.VolumeClaimTemplateSpec {
+	return []resource.VolumeClaimTemplateSpec{
 		{
 			Name: workerDataVolumeName(),
-			PvcSpec: common.PvcSpec{
+			PvcSpec: resource.PvcSpec{
 				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 				StorageSize: s.MergedCfg.Config.StorageSize,
 			},

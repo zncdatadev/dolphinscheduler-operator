@@ -3,6 +3,8 @@ package master
 import (
 	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -20,7 +22,7 @@ func NewMasterContainerBuilder(
 		panic("dbSpec is nil")
 	}
 	return &ContainerBuilder{
-		ContainerBuilder:        *common.NewContainerBuilder(image, imagePullPolicy),
+		ContainerBuilder:        *resource.NewContainerBuilder(image, imagePullPolicy),
 		zookeeperDiscoveryZNode: zookeeperDiscoveryZNode,
 		resourceSpec:            resourceSpec,
 		envConfigName:           envConfigName,
@@ -30,19 +32,19 @@ func NewMasterContainerBuilder(
 }
 
 type ContainerMasterBuilderType interface {
-	common.ContainerName
-	common.ContainerEnv
-	common.ContainerEnvFrom
-	common.VolumeMount
-	common.LivenessProbe
-	common.ReadinessProbe
-	common.ContainerPorts
+	resource.ContainerName
+	resource.ContainerEnv
+	resource.ContainerEnvFrom
+	resource.VolumeMount
+	resource.LivenessProbe
+	resource.ReadinessProbe
+	resource.ContainerPorts
 }
 
 var _ ContainerMasterBuilderType = &ContainerBuilder{}
 
 type ContainerBuilder struct {
-	common.ContainerBuilder
+	resource.ContainerBuilder
 	zookeeperDiscoveryZNode string
 	resourceSpec            *dolphinv1alpha1.ResourcesSpec
 	envConfigName           string
@@ -98,7 +100,7 @@ func (c *ContainerBuilder) ContainerEnv() []corev1.EnvVar {
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: c.zookeeperDiscoveryZNode,
 					},
-					Key: common.ZookeeperDiscoveryKey,
+					Key: core.ZookeeperDiscoveryKey,
 				},
 			},
 		},
@@ -222,5 +224,7 @@ func (c *ContainerBuilder) ReadinessProbe() *corev1.Probe {
 }
 
 func (c *ContainerBuilder) ContainerName() string {
-	return string(common.Master)
+	return string(ContainerMaster)
 }
+
+const ContainerMaster resource.ContainerComponent = resource.ContainerComponent(core.Master)

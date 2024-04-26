@@ -1,9 +1,10 @@
-package common
+package resource
 
 import (
 	"context"
 	"fmt"
-	"github.com/zncdata-labs/dolphinscheduler-operator/internal/util"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -11,8 +12,8 @@ import (
 )
 
 type ConfigMapType interface {
-	ResourceBuilder
-	ConfigurationOverride
+	core.ResourceBuilder
+	core.ConfigurationOverride
 }
 
 type ConfigMapBuilder struct {
@@ -152,7 +153,7 @@ const (
 // parameters:
 // 1. resourceBuilerFunc: a function to create a new resource
 type GeneralConfigMapReconciler[T client.Object, G any] struct {
-	GeneralResourceStyleReconciler[T, G]
+	core.GeneralResourceStyleReconciler[T, G]
 	resourceBuilderFunc       func() (*corev1.ConfigMap, error)
 	configurationOverrideFunc func() error
 }
@@ -170,7 +171,7 @@ func NewGeneralConfigMap[T client.Object, G any](
 
 ) *GeneralConfigMapReconciler[T, G] {
 	return &GeneralConfigMapReconciler[T, G]{
-		GeneralResourceStyleReconciler: *NewGeneraResourceStyleReconciler[T, G](
+		GeneralResourceStyleReconciler: *core.NewGeneraResourceStyleReconciler[T, G](
 			scheme,
 			instance,
 			client,

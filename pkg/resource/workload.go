@@ -1,6 +1,7 @@
-package common
+package resource
 
 import (
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -35,9 +36,9 @@ func NewDeploymentBuilder(name string, nameSpace string, labels map[string]strin
 }
 
 type WorkloadResourceType interface {
-	ResourceBuilder
-	ConditionsGetter
-	WorkloadOverride
+	core.ResourceBuilder
+	core.ConditionsGetter
+	core.WorkloadOverride
 }
 
 type VolumeSourceType string

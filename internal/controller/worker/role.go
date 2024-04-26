@@ -4,6 +4,8 @@ import (
 	"context"
 	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -12,12 +14,13 @@ import (
 func NewWorkerRole(
 	scheme *runtime.Scheme,
 	instance *dolphinv1alpha1.DolphinschedulerCluster,
-	client client.Client) *common.BaseRoleReconciler[*dolphinv1alpha1.DolphinschedulerCluster] {
+	client client.Client) *core.BaseRoleReconciler[*dolphinv1alpha1.DolphinschedulerCluster] {
 	dolphinInstance := &common.DolphinSchedulerClusterInstance{Instance: instance}
-	LabelHelper := common.RoleLabelHelper{}
-	roleLabels := LabelHelper.RoleLabels(instance.GetName(), common.Worker)
+	LabelHelper := core.RoleLabelHelper{}
+	roleLabels := LabelHelper.RoleLabels(instance.GetName(), core.Worker)
 	workerHelper := NewRoleWorkerHelper(scheme, instance, roleLabels, client)
-	return common.NewBaseRoleReconciler(scheme, instance, client, common.Worker, roleLabels, dolphinInstance, workerHelper)
+	pdb := resource.NewReconcilePDB(client, scheme, instance, roleLabels, string(core.Worker), common.PdbCfg(instance.Spec.Alerter.PodDisruptionBudget))
+	return core.NewBaseRoleReconciler(scheme, instance, client, core.Worker, roleLabels, dolphinInstance, workerHelper, pdb)
 }
 
 func NewRoleWorkerHelper(scheme *runtime.Scheme, instance *dolphinv1alpha1.DolphinschedulerCluster,
@@ -33,7 +36,7 @@ func NewRoleWorkerHelper(scheme *runtime.Scheme, instance *dolphinv1alpha1.Dolph
 	}
 }
 
-var _ common.RoleHelper = &RoleWorkerHelper{}
+var _ core.RoleHelper = &RoleWorkerHelper{}
 
 type RoleWorkerHelper struct {
 	scheme          *runtime.Scheme
@@ -52,29 +55,29 @@ func (r *RoleWorkerHelper) MergeConfig() map[string]any {
 		// Merge the role into the role group.
 		// if the role group has a config, and role group not has a config, will
 		// merge the role's config into the role group's config.
-		common.MergeObjects(copiedRoleGroup, r.workerRoleSpec, []string{"RoleGroups"})
+		core.MergeObjects(copiedRoleGroup, r.workerRoleSpec, []string{"RoleGroups"})
 
 		// merge the role's config into the role group's config
 		if r.workerRoleSpec.Config != nil && copiedRoleGroup.Config != nil {
-			common.MergeObjects(copiedRoleGroup.Config, r.workerRoleSpec.Config, []string{})
+			core.MergeObjects(copiedRoleGroup.Config, r.workerRoleSpec.Config, []string{})
 		}
 		mergedCfg[groupName] = copiedRoleGroup
 	}
 	return mergedCfg
 }
 
-func (r *RoleWorkerHelper) RegisterResources(ctx context.Context) map[string][]common.ResourceReconciler {
-	var reconcilers = map[string][]common.ResourceReconciler{}
-	helper := common.RoleLabelHelper{}
+func (r *RoleWorkerHelper) RegisterResources(ctx context.Context) map[string][]core.ResourceReconciler {
+	var reconcilers = map[string][]core.ResourceReconciler{}
+	helper := core.RoleLabelHelper{}
 	for _, groupName := range r.groups {
-		value := common.GetRoleGroup(r.instance.Name, common.Worker, groupName)
+		value := core.GetRoleGroup(r.instance.Name, core.Worker, groupName)
 		mergedCfg := value.(*dolphinv1alpha1.RoleGroupSpec)
 		labels := helper.GroupLabels(r.roleLabels, groupName, mergedCfg.Config.NodeSelector)
 		statefulset := NewStatefulSet(r.scheme, r.instance, r.client, groupName, labels, mergedCfg, mergedCfg.Replicas)
 		svc := NewWorkerServiceHeadless(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
-		groupReconcilers := []common.ResourceReconciler{statefulset, svc}
+		groupReconcilers := []core.ResourceReconciler{statefulset, svc}
 		if mergedCfg.Config.PodDisruptionBudget != nil {
-			pdb := common.NewReconcilePDB(r.client, r.scheme, r.instance, labels, groupName,
+			pdb := resource.NewReconcilePDB(r.client, r.scheme, r.instance, labels, groupName,
 				common.PdbCfg(mergedCfg.Config.PodDisruptionBudget))
 			groupReconcilers = append(groupReconcilers, pdb)
 		}

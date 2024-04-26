@@ -3,6 +3,7 @@ package controller
 import (
 	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -16,7 +17,7 @@ func NewServiceAccount(
 	client client.Client,
 	mergedLabels map[string]string,
 	mergedCfg any,
-) *common.GenericServiceAccountReconciler[*dolphinv1alpha1.DolphinschedulerCluster, any] {
-	return common.NewServiceAccount[*dolphinv1alpha1.DolphinschedulerCluster](scheme, instance, client, mergedLabels, mergedCfg,
+) *resource.GenericServiceAccountReconciler[*dolphinv1alpha1.DolphinschedulerCluster, any] {
+	return resource.NewServiceAccount[*dolphinv1alpha1.DolphinschedulerCluster](scheme, instance, client, mergedLabels, mergedCfg,
 		serviceAccountName(instance.GetName()), instance.GetNamespace())
 }

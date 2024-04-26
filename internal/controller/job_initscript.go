@@ -5,6 +5,8 @@ import (
 	"fmt"
 	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,7 +22,7 @@ func NewJobInitScriptReconciler(
 	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
 ) *JobInitScriptReconciler {
 	return &JobInitScriptReconciler{
-		GeneralResourceStyleReconciler: *common.NewGeneraResourceStyleReconciler(
+		GeneralResourceStyleReconciler: *core.NewGeneraResourceStyleReconciler(
 			scheme,
 			instance,
 			client,
@@ -31,10 +33,10 @@ func NewJobInitScriptReconciler(
 	}
 }
 
-var _ common.ResourceBuilder = &JobInitScriptReconciler{}
+var _ core.ResourceBuilder = &JobInitScriptReconciler{}
 
 type JobInitScriptReconciler struct {
-	common.GeneralResourceStyleReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec]
+	core.GeneralResourceStyleReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec]
 }
 
 func (j *JobInitScriptReconciler) Build(_ context.Context) (client.Object, error) {
@@ -62,7 +64,7 @@ func (j *JobInitScriptReconciler) Build(_ context.Context) (client.Object, error
 
 func (j *JobInitScriptReconciler) InitDbContainer() corev1.Container {
 	return corev1.Container{
-		Name:  string(dbInitJob),
+		Name:  string(ContainerDbInitJob),
 		Image: dolphinv1alpha1.DbInitImage,
 		Args: []string{
 			"tools/bin/upgrade-schema.sh",
@@ -101,7 +103,7 @@ func (j *JobInitScriptReconciler) InitDbContainerEnvs() []corev1.EnvVar {
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: "dolphinscheduler-common",
 					},
-					Key: common.ZookeeperDiscoveryKey,
+					Key: core.ZookeeperDiscoveryKey,
 				},
 			},
 		},
@@ -114,7 +116,7 @@ func (j *JobInitScriptReconciler) waitDbContainer() corev1.Container {
 	_, params := common.ExtractDataBaseReference(j.Instance.Spec.ClusterConfigSpec.Database)
 	dbHost := params.Host
 	return corev1.Container{
-		Name:  string(waitForDb),
+		Name:  string(ContainerWaitForDb),
 		Image: "busybox:1.30.1",
 		Command: []string{
 			"sh",
@@ -125,6 +127,6 @@ func (j *JobInitScriptReconciler) waitDbContainer() corev1.Container {
 }
 
 const (
-	dbInitJob common.ContainerComponent = "dolphinscheduler-db-init-job"
-	waitForDb common.ContainerComponent = "wait-for-database"
+	ContainerDbInitJob resource.ContainerComponent = "dolphinscheduler-db-init-job"
+	ContainerWaitForDb resource.ContainerComponent = "wait-for-database"
 )
