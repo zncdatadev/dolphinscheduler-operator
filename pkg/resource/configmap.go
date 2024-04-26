@@ -11,18 +11,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type ConfigMapType interface {
-	core.ResourceBuilder
-	core.ConfigurationOverride
-}
-
-type ConfigMapBuilder struct {
-	Name             string
-	Namespace        string
-	Labels           map[string]string
-	ConfigGenerators []interface{}
-}
-
 func NewConfigMapBuilder(
 	name string,
 	namespace string,
@@ -35,6 +23,18 @@ func NewConfigMapBuilder(
 		Labels:           labels,
 		ConfigGenerators: configGenerators,
 	}
+}
+
+type ConfigMapType interface {
+	core.ResourceBuilder
+	core.ConfigurationOverride
+}
+
+type ConfigMapBuilder struct {
+	Name             string
+	Namespace        string
+	Labels           map[string]string
+	ConfigGenerators []interface{}
 }
 
 func (c *ConfigMapBuilder) Build() *corev1.ConfigMap {

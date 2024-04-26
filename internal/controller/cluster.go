@@ -63,10 +63,3 @@ func (d *DolphinSchedulerClusterReconcileRequirement) RegisterResources() []core
 	resources = append(resources, NewServiceAccount(d.scheme, d.instance, d.client, lables, nil))
 	return resources
 }
-
-func (d *DolphinSchedulerClusterReconcileRequirement) PreReconcile() {
-	roles := d.RegisterRoles()
-	for _, role := range roles {
-		role.MergeConfig()
-	}
-}

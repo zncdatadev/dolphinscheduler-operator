@@ -18,24 +18,31 @@ package controller
 
 import (
 	"context"
+	"github.com/go-logr/logr"
+	"k8s.io/client-go/util/retry"
 
+	dolphinschedulerv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	dolphinschedulerv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
 )
 
 // DolphinschedulerClusterReconciler reconciles a DolphinschedulerCluster object
 type DolphinschedulerClusterReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Log    logr.Logger
 }
 
 //+kubebuilder:rbac:groups=dolphinscheduler.zncdata.dev,resources=dolphinschedulerclusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=dolphinscheduler.zncdata.dev,resources=dolphinschedulerclusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=dolphinscheduler.zncdata.dev,resources=dolphinschedulerclusters/finalizers,verbs=update
+//+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=apps,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -47,11 +54,46 @@ type DolphinschedulerClusterReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
 func (r *DolphinschedulerClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	r.Log.Info("Reconciling DolphionScheduler cluster instance")
 
-	// TODO(user): your logic here
+	cr := &dolphinschedulerv1alpha1.DolphinschedulerCluster{}
 
+	if err := r.Get(ctx, req.NamespacedName, cr); err != nil {
+		if client.IgnoreNotFound(err) != nil {
+			r.Log.Error(err, "unable to fetch DolphionSchedulerCluster")
+			return ctrl.Result{}, err
+		}
+		r.Log.Info("DolphionScheduler-cluster resource not found. Ignoring since object must be deleted")
+		return ctrl.Result{}, nil
+	}
+
+	r.Log.Info("DolphionSchedulerCluster found", "Name", cr.Name)
+	// reconcile order by "cluster -> role -> role-group -> resource"
+	result, err := NewDolphinSchedulerCluster(r.Scheme, cr, r.Client).ReconcileCluster(ctx)
+	if err != nil {
+		return ctrl.Result{}, err
+	} else if result.RequeueAfter > 0 {
+		return result, nil
+	}
+	r.Log.Info("Reconcile successfully ", "Name", cr.Name)
 	return ctrl.Result{}, nil
+}
+
+// UpdateStatus updates the status of the DolphionSchedulerCluster resource
+// https://stackoverflow.com/questions/76388004/k8s-controller-update-status-and-condition
+func (r *DolphinschedulerClusterReconciler) UpdateStatus(ctx context.Context, instance *dolphinschedulerv1alpha1.DolphinschedulerCluster) error {
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		return r.Status().Update(ctx, instance)
+		//return r.Status().Patch(ctx, instance, client.MergeFrom(instance))
+	})
+
+	if retryErr != nil {
+		r.Log.Error(retryErr, "Failed to update vfm status after retries")
+		return retryErr
+	}
+
+	r.Log.V(1).Info("Successfully patched object status")
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

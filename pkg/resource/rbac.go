@@ -97,8 +97,6 @@ func (r *GenericServiceAccountReconciler[T, G]) Build(_ context.Context) (client
 	}, nil
 }
 
-// generic role reconciler
-
 // GenericRoleReconciler generic role reconciler
 type GenericRoleReconciler[T client.Object, G any] struct {
 	core.GeneralResourceStyleReconciler[T, G]

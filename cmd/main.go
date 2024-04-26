@@ -92,6 +92,7 @@ func main() {
 	if err = (&controller.DolphinschedulerClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Log:    setupLog,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DolphinschedulerCluster")
 		os.Exit(1)
