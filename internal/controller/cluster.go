@@ -61,6 +61,8 @@ func (d *DolphinSchedulerClusterReconcileRequirement) RegisterResources() []core
 	resources := make([]core.ResourceReconciler, 0)
 	resources = append(resources, NewConfigMap(d.scheme, d.instance, d.client, lables, nil))
 	resources = append(resources, NewServiceAccount(d.scheme, d.instance, d.client, lables, nil))
+	resources = append(resources, NewRole(d.scheme, d.instance, d.client, lables, nil))
+	resources = append(resources, NewRoleBinding(d.scheme, d.instance, d.client, lables, nil))
 	resources = append(resources, NewJobInitScriptReconciler(d.scheme, d.instance, d.client, lables, nil))
 	return resources
 }

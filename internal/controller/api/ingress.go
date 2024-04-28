@@ -55,7 +55,7 @@ func (i *IngressReconciler) Build(ctx context.Context) (client.Object, error) {
 										Service: &v1.IngressServiceBackend{
 											Name: createSvcName(i.Instance.GetName(), i.GroupName),
 											Port: v1.ServiceBackendPort{
-												Name: "api-port",
+												Name: dolphinv1alpha1.ApiPortName,
 											},
 										},
 									},

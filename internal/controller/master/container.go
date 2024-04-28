@@ -6,7 +6,7 @@ import (
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
+	"strconv"
 )
 
 func NewMasterContainerBuilder(
@@ -192,10 +192,12 @@ func (c *ContainerBuilder) VolumeMount() []corev1.VolumeMount {
 func (c *ContainerBuilder) LivenessProbe() *corev1.Probe {
 	return &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
-			HTTPGet: &corev1.HTTPGetAction{
-				Host: "localhost",
-				Path: "/actuator/health/liveness",
-				Port: intstr.FromInt32(dolphinv1alpha1.MasterActualPort),
+			Exec: &corev1.ExecAction{
+				Command: []string{
+					"curl",
+					"-s",
+					"http://localhost:" + strconv.Itoa(dolphinv1alpha1.MasterActualPort) + "/actuator/health/liveness",
+				},
 			},
 		},
 		InitialDelaySeconds: 30,
@@ -209,10 +211,12 @@ func (c *ContainerBuilder) LivenessProbe() *corev1.Probe {
 func (c *ContainerBuilder) ReadinessProbe() *corev1.Probe {
 	return &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
-			HTTPGet: &corev1.HTTPGetAction{
-				Host: "localhost",
-				Path: "/actuator/health/readiness",
-				Port: intstr.FromInt32(dolphinv1alpha1.MasterActualPort),
+			Exec: &corev1.ExecAction{
+				Command: []string{
+					"curl",
+					"-s",
+					"http://localhost:" + strconv.Itoa(dolphinv1alpha1.MasterActualPort) + "/actuator/health/readiness",
+				},
 			},
 		},
 		InitialDelaySeconds: 30,
