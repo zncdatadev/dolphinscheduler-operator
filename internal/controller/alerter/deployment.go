@@ -17,7 +17,7 @@ import (
 var _ resource.WorkloadResourceType = &DeploymentReconciler{}
 
 type DeploymentReconciler struct {
-	core.WorkloadStyleUncheckedReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec]
+	core.WorkloadStyleUncheckedReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.AlerterRoleGroupSpec]
 }
 
 func NewDeployment(
@@ -26,7 +26,7 @@ func NewDeployment(
 	client client.Client,
 	groupName string,
 	labels map[string]string,
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
+	mergedCfg *dolphinv1alpha1.AlerterRoleGroupSpec,
 	replicate int32,
 ) *DeploymentReconciler {
 	return &DeploymentReconciler{
@@ -42,13 +42,13 @@ func NewDeployment(
 	}
 }
 
-func (s *DeploymentReconciler) Build(_ context.Context) (client.Object, error) {
+func (s *DeploymentReconciler) Build(ctx context.Context) (client.Object, error) {
 	builder := resource.NewDeploymentBuilder(
 		createDeploymentName(s.Instance.GetName(), s.GroupName),
 		s.Instance.Namespace,
 		s.Labels,
 		s.Replicas,
-		s.makeAlerterContainer(),
+		s.makeAlerterContainer(ctx),
 	)
 	builder.SetServiceAccountName(common.CreateServiceAccountName(s.Instance.GetName()))
 	builder.SetVolumes(s.volumes())
@@ -86,13 +86,14 @@ func (s *DeploymentReconciler) LogOverride(_ client.Object) {
 	// do nothing, see name node
 }
 
-func (s *DeploymentReconciler) makeAlerterContainer() []corev1.Container {
+func (s *DeploymentReconciler) makeAlerterContainer(ctx context.Context) []corev1.Container {
 	imageSpec := s.Instance.Spec.Alerter.Image
 	resourceSpec := s.MergedCfg.Config.Resources
 	zNode := s.Instance.Spec.ClusterConfigSpec.ZookeeperDiscoveryZNode
 	imageName := util.ImageRepository(imageSpec.Repository, imageSpec.Tag)
 	configConfigMapName := common.ConfigConfigMapName(s.Instance.GetName(), s.GroupName)
 	envsConfigMapName := common.EnvsConfigMapName(s.Instance.GetName(), s.GroupName)
+	_, dbParams := common.ExtractDataBaseReference(s.Instance.Spec.ClusterConfigSpec.Database, ctx, s.Client, s.Instance.GetNamespace())
 	builder := NewAlerterContainerBuilder(
 		imageName,
 		imageSpec.PullPolicy,
@@ -101,6 +102,7 @@ func (s *DeploymentReconciler) makeAlerterContainer() []corev1.Container {
 		envsConfigMapName,
 		configConfigMapName,
 		s.Instance.Spec.ClusterConfigSpec.Database,
+		dbParams,
 	)
 	dolphinContainer := builder.Build(builder)
 	return []corev1.Container{

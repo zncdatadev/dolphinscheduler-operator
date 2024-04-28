@@ -16,7 +16,7 @@ func NewIngress(
 	client client.Client,
 	groupName string,
 	labels map[string]string,
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
+	mergedCfg *dolphinv1alpha1.ApiRoleGroupSpec,
 ) *IngressReconciler {
 	return &IngressReconciler{
 		GeneralResourceStyleReconciler: *core.NewGeneraResourceStyleReconciler(
@@ -33,7 +33,7 @@ func NewIngress(
 var _ core.ResourceBuilder = &IngressReconciler{}
 
 type IngressReconciler struct {
-	core.GeneralResourceStyleReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec]
+	core.GeneralResourceStyleReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.ApiRoleGroupSpec]
 }
 
 func (i *IngressReconciler) Build(ctx context.Context) (client.Object, error) {

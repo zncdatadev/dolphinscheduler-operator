@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
@@ -8,6 +9,7 @@ import (
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/util"
 	"golang.org/x/exp/maps"
 	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strconv"
 	"strings"
 )
@@ -120,22 +122,28 @@ func LinuxEnvRef(envName string) string {
 }
 
 func PdbCfg(pdbSpec *dolphinv1alpha1.PodDisruptionBudgetSpec) *core.PdbConfig {
+	if pdbSpec == nil {
+		return nil
+	}
 	return &core.PdbConfig{
 		MaxUnavailable: pdbSpec.MaxUnavailable,
 		MinAvailable:   pdbSpec.MinAvailable,
 	}
 }
-func ExtractDataBaseReference(dbSpec *dolphinv1alpha1.DatabaseSpec) (*resource.DatabaseConfiguration, *resource.DatabaseParams) {
-	inlineDb := dbSpec.Inline
+func ExtractDataBaseReference(dbSpec *dolphinv1alpha1.DatabaseSpec, ctx context.Context, client client.Client,
+	namespace string) (*resource.DatabaseConfiguration, *resource.DatabaseParams) {
 	db := resource.DatabaseConfiguration{
-		DbReference: &dbSpec.Reference,
-		DbInline: resource.NewDatabaseParams(
+		DbReference:    &dbSpec.Reference,
+		ResourceClient: core.NewResourceClient(ctx, client, namespace),
+	}
+	if inlineDb := dbSpec.Inline; inlineDb != nil {
+		db.DbInline = resource.NewDatabaseParams(
 			inlineDb.Driver,
 			inlineDb.Username,
 			inlineDb.Password,
 			inlineDb.Host,
 			strconv.Itoa(int(inlineDb.Port)),
-			inlineDb.DatabaseName),
+			inlineDb.DatabaseName)
 	}
 	params, err := db.GetDatabaseParams()
 	if err != nil {
@@ -144,12 +152,13 @@ func ExtractDataBaseReference(dbSpec *dolphinv1alpha1.DatabaseSpec) (*resource.D
 	return &db, params
 }
 
-func MakeDataBaseEnvs(dbSpec *dolphinv1alpha1.DatabaseSpec) []corev1.EnvVar {
-	db, params := ExtractDataBaseReference(dbSpec)
-	uri, err := db.GetURI()
-	if err != nil {
-		panic(err)
-	}
+func MakeDataBaseEnvs(params *resource.DatabaseParams) []corev1.EnvVar {
+	//db, params := ExtractDataBaseReference(dbSpec, ctx, client, namespace)
+	//uri, err := db.GetURI()
+	//if err != nil {
+	//	panic(err)
+	//}
+	uri := resource.ToUri(params)
 	return []corev1.EnvVar{
 		{
 			Name:  "DATABASE",
@@ -172,42 +181,6 @@ func MakeDataBaseEnvs(dbSpec *dolphinv1alpha1.DatabaseSpec) []corev1.EnvVar {
 			Value: params.Driver,
 		},
 	}
-}
-
-var _ core.RoleGroupConfigGetter = &GenericRoleGroupGetter{}
-
-type GenericRoleGroupGetter struct {
-	core.RoleConfigGetter
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec
-}
-
-func (r *GenericRoleGroupGetter) Replicas() int32 {
-	return r.mergedCfg.Replicas
-}
-
-func NewRoleGroupTransformer(
-	roleConfigGetter core.RoleConfigGetter,
-	groupSpec *dolphinv1alpha1.RoleGroupSpec) *GenericRoleGroupGetter {
-	return &GenericRoleGroupGetter{RoleConfigGetter: roleConfigGetter, mergedCfg: groupSpec}
-}
-
-func (r *GenericRoleGroupGetter) MergedConfig() any {
-	return r.mergedCfg
-}
-
-func (r *GenericRoleGroupGetter) GroupPdbSpec() *core.PdbConfig {
-	pdbSpec := r.mergedCfg.Config.PodDisruptionBudget
-	if pdbSpec == nil {
-		return nil
-	}
-	return &core.PdbConfig{
-		MinAvailable:   pdbSpec.MinAvailable,
-		MaxUnavailable: pdbSpec.MaxUnavailable,
-	}
-}
-
-func (r *GenericRoleGroupGetter) NodeSelector() map[string]string {
-	return r.mergedCfg.Config.NodeSelector
 }
 
 var _ core.InstanceAttributes = &DolphinSchedulerClusterInstance{}
@@ -249,11 +222,14 @@ func (k *DolphinSchedulerClusterInstance) transformRoleSpec(
 	groups []string,
 	rolePdbSpec *dolphinv1alpha1.PodDisruptionBudgetSpec,
 ) *core.RoleConfiguration {
-	return core.NewRoleConfiguration(roleConfigGetter.Config(), groups,
-		&core.PdbConfig{
+	var pdbCfg *core.PdbConfig
+	if rolePdbSpec != nil {
+		pdbCfg = &core.PdbConfig{
 			MinAvailable:   rolePdbSpec.MinAvailable,
 			MaxUnavailable: rolePdbSpec.MinAvailable,
-		})
+		}
+	}
+	return core.NewRoleConfiguration(roleConfigGetter.Config(), groups, pdbCfg)
 }
 
 func (k *DolphinSchedulerClusterInstance) GetClusterConfig() any {

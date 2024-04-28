@@ -3105,12 +3105,28 @@ spec:
                           additionalProperties:
                             type: string
                           type: object
+                        image:
+                          properties:
+                            pullPolicy:
+                              default: IfNotPresent
+                              description: PullPolicy describes a policy for if/when
+                                to pull a container image
+                              type: string
+                            repository:
+                              default: apache/dolphinscheduler-alert-server
+                              type: string
+                            tag:
+                              default: 3.2.1
+                              type: string
+                          type: object
                         replicas:
                           default: 1
                           format: int32
                           type: integer
                       type: object
                     type: object
+                required:
+                - image
                 type: object
               api:
                 properties:
@@ -6181,12 +6197,28 @@ spec:
                           additionalProperties:
                             type: string
                           type: object
+                        image:
+                          properties:
+                            pullPolicy:
+                              default: IfNotPresent
+                              description: PullPolicy describes a policy for if/when
+                                to pull a container image
+                              type: string
+                            repository:
+                              default: apache/dolphinscheduler-api
+                              type: string
+                            tag:
+                              default: 3.2.1
+                              type: string
+                          type: object
                         replicas:
                           default: 1
                           format: int32
                           type: integer
                       type: object
                     type: object
+                required:
+                - image
                 type: object
               clusterConfig:
                 properties:
@@ -9339,12 +9371,28 @@ spec:
                           additionalProperties:
                             type: string
                           type: object
+                        image:
+                          properties:
+                            pullPolicy:
+                              default: IfNotPresent
+                              description: PullPolicy describes a policy for if/when
+                                to pull a container image
+                              type: string
+                            repository:
+                              default: apache/dolphinscheduler-master
+                              type: string
+                            tag:
+                              default: 3.2.1
+                              type: string
+                          type: object
                         replicas:
                           default: 1
                           format: int32
                           type: integer
                       type: object
                     type: object
+                required:
+                - image
                 type: object
               worker:
                 properties:
@@ -12415,12 +12463,28 @@ spec:
                           additionalProperties:
                             type: string
                           type: object
+                        image:
+                          properties:
+                            pullPolicy:
+                              default: IfNotPresent
+                              description: PullPolicy describes a policy for if/when
+                                to pull a container image
+                              type: string
+                            repository:
+                              default: apache/dolphinscheduler-worker
+                              type: string
+                            tag:
+                              default: 3.2.1
+                              type: string
+                          type: object
                         replicas:
                           default: 1
                           format: int32
                           type: integer
                       type: object
                     type: object
+                required:
+                - image
                 type: object
             type: object
           status:

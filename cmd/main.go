@@ -34,6 +34,7 @@ import (
 
 	dolphinschedulerv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/controller"
+	commonsv1alph1 "github.com/zncdata-labs/operator-go/pkg/apis/commons/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -47,6 +48,7 @@ func init() {
 
 	utilruntime.Must(dolphinschedulerv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
+	utilruntime.Must(commonsv1alph1.AddToScheme(scheme))
 }
 
 func main() {

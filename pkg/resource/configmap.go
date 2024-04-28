@@ -39,7 +39,7 @@ type ConfigMapBuilder struct {
 
 func (c *ConfigMapBuilder) Build() *corev1.ConfigMap {
 	var data = make(map[string]string)
-	if len(c.ConfigGenerators) == 0 {
+	if len(c.ConfigGenerators) != 0 {
 		top := c.ConfigGenerators[0]
 		switch top.(type) {
 		case FileContentGenerator:

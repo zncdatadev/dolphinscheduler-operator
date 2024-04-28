@@ -101,15 +101,8 @@ func (r *BaseRoleReconciler[T]) MergeConfig() {
 	}
 }
 
-//func (r *BaseRoleReconciler[T]) RoleLabels() map[string]string {
-//	roleLables := RoleLabels{InstanceName: r.Instance.GetName(), Name: string(r.Role)}
-//	mergeLabels := roleLables.GetLabels()
-//	return mergeLabels
-//}
-
 func (r *BaseRoleReconciler[T]) ReconcileRole(ctx context.Context) (ctrl.Result, error) {
 	roleCfg := r.InstanceAttributes.GetRoleConfig(r.Role)
-	// role pdb
 	if r.RolePdbReconciler != nil {
 		res, err := SingleResourceDoReconcile(ctx, r.RolePdbReconciler)
 		if err != nil {
@@ -119,16 +112,7 @@ func (r *BaseRoleReconciler[T]) ReconcileRole(ctx context.Context) (ctrl.Result,
 			return res, nil
 		}
 	}
-	//if roleCfg.Config != nil && roleCfg.RolePdbConfig != nil {
-	//	pdb := resource.NewReconcilePDB(r.Client, r.Scheme, r.Instance, r.RoleLabels, string(r.Role), roleCfg.RolePdbConfig)
-	//	res, err := pdb.ReconcileResource(ctx, NewSingleResourceBuilder(pdb))
-	//	if err != nil {
-	//		return ctrl.Result{}, err
-	//	}
-	//	if res.RequeueAfter > 0 {
-	//		return res, nil
-	//	}
-	//}
+
 	// reconciler groups
 	for _, name := range roleCfg.RoleGroups {
 		resourceReconcilers := r.RoleHelper.RegisterResources(ctx)

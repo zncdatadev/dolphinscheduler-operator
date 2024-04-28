@@ -17,7 +17,7 @@ import (
 var _ resource.WorkloadResourceType = &StatefulSetReconciler{}
 
 type StatefulSetReconciler struct {
-	core.WorkloadStyleReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec]
+	core.WorkloadStyleReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.MasterRoleGroupSpec]
 }
 
 func NewStatefulSet(
@@ -26,7 +26,7 @@ func NewStatefulSet(
 	client client.Client,
 	groupName string,
 	labels map[string]string,
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
+	mergedCfg *dolphinv1alpha1.MasterRoleGroupSpec,
 	replicate int32,
 ) *StatefulSetReconciler {
 	return &StatefulSetReconciler{
@@ -42,14 +42,14 @@ func NewStatefulSet(
 	}
 }
 
-func (s *StatefulSetReconciler) Build(_ context.Context) (client.Object, error) {
+func (s *StatefulSetReconciler) Build(ctx context.Context) (client.Object, error) {
 	builder := resource.NewStatefulSetBuilder(
 		createStatefulSetName(s.Instance.GetName(), s.GroupName),
 		s.Instance.Namespace,
 		s.Labels,
 		s.Replicas,
 		createSvcName(s.Instance.GetName(), s.GroupName),
-		s.makeMasterContainer(),
+		s.makeMasterContainer(ctx),
 	)
 	builder.SetServiceAccountName(common.CreateServiceAccountName(s.Instance.GetName()))
 	builder.SetVolumes(s.volumes())
@@ -86,13 +86,14 @@ func (s *StatefulSetReconciler) LogOverride(_ client.Object) {
 	// do nothing, see name node
 }
 
-func (s *StatefulSetReconciler) makeMasterContainer() []corev1.Container {
+func (s *StatefulSetReconciler) makeMasterContainer(ctx context.Context) []corev1.Container {
 	imageSpec := s.Instance.Spec.Master.Image
 	resourceSpec := s.MergedCfg.Config.Resources
 	zNode := s.Instance.Spec.ClusterConfigSpec.ZookeeperDiscoveryZNode
 	imageName := util.ImageRepository(imageSpec.Repository, imageSpec.Tag)
 	configConfigMapName := common.ConfigConfigMapName(s.Instance.GetName(), s.GroupName)
 	envsConfigMapName := common.EnvsConfigMapName(s.Instance.GetName(), s.GroupName)
+	_, dbParams := common.ExtractDataBaseReference(s.Instance.Spec.ClusterConfigSpec.Database, ctx, s.Client, s.Instance.GetNamespace())
 	builder := NewMasterContainerBuilder(
 		imageName,
 		imageSpec.PullPolicy,
@@ -100,7 +101,7 @@ func (s *StatefulSetReconciler) makeMasterContainer() []corev1.Container {
 		resourceSpec,
 		envsConfigMapName,
 		configConfigMapName,
-		s.Instance.Spec.ClusterConfigSpec.Database,
+		dbParams,
 	)
 	dolphinContainer := builder.Build(builder)
 	return []corev1.Container{

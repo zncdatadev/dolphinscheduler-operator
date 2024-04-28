@@ -17,6 +17,7 @@ func NewAlerterContainerBuilder(
 	envConfigName string,
 	configConfigMapName string,
 	dbSpec *dolphinv1alpha1.DatabaseSpec,
+	dbParams *resource.DatabaseParams,
 ) *ContainerBuilder {
 	if dbSpec == nil {
 		panic("dbSpec is nil")
@@ -27,7 +28,7 @@ func NewAlerterContainerBuilder(
 		resourceSpec:            resourceSpec,
 		envConfigName:           envConfigName,
 		configConfigMapName:     configConfigMapName,
-		dbSpec:                  dbSpec,
+		dbParams:                dbParams,
 	}
 }
 
@@ -49,7 +50,7 @@ type ContainerBuilder struct {
 	resourceSpec            *dolphinv1alpha1.ResourcesSpec
 	envConfigName           string
 	configConfigMapName     string
-	dbSpec                  *dolphinv1alpha1.DatabaseSpec
+	dbParams                *resource.DatabaseParams
 }
 
 func (c *ContainerBuilder) ContainerPorts() []corev1.ContainerPort {
@@ -109,7 +110,7 @@ func (c *ContainerBuilder) ContainerEnv() []corev1.EnvVar {
 			Value: "-Xms512m -Xmx512m -Xmn256m",
 		},
 	}
-	envs = append(envs, common.MakeDataBaseEnvs(c.dbSpec)...)
+	envs = append(envs, common.MakeDataBaseEnvs(c.dbParams)...)
 	return envs
 }
 

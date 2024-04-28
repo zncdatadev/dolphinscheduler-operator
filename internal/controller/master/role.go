@@ -19,7 +19,11 @@ func NewMasterRole(
 	LabelHelper := core.RoleLabelHelper{}
 	roleLabels := LabelHelper.RoleLabels(instance.GetName(), core.Master)
 	masterHelper := NewRoleMasterHelper(scheme, instance, roleLabels, client)
-	pdb := resource.NewReconcilePDB(client, scheme, instance, roleLabels, string(core.Master), common.PdbCfg(instance.Spec.Alerter.PodDisruptionBudget))
+
+	var pdb core.ResourceReconciler
+	if instance.Spec.Alerter.PodDisruptionBudget != nil {
+		pdb = resource.NewReconcilePDB(client, scheme, instance, roleLabels, string(core.Master), common.PdbCfg(instance.Spec.Alerter.PodDisruptionBudget))
+	}
 	return core.NewBaseRoleReconciler(scheme, instance, client, core.Master, roleLabels, dolphinInstance, masterHelper, pdb)
 }
 
@@ -45,7 +49,7 @@ type RoleMasterHelper struct {
 	groups          []string
 	roleLabels      map[string]string
 	masterRoleSpec  *dolphinv1alpha1.MasterSpec
-	masterGroupSpec map[string]*dolphinv1alpha1.RoleGroupSpec
+	masterGroupSpec map[string]*dolphinv1alpha1.MasterRoleGroupSpec
 }
 
 func (r *RoleMasterHelper) MergeConfig() map[string]any {
@@ -71,7 +75,7 @@ func (r *RoleMasterHelper) RegisterResources(ctx context.Context) map[string][]c
 	helper := core.RoleLabelHelper{}
 	for _, groupName := range r.groups {
 		value := core.GetRoleGroup(r.instance.Name, core.Master, groupName)
-		mergedCfg := value.(*dolphinv1alpha1.RoleGroupSpec)
+		mergedCfg := value.(*dolphinv1alpha1.MasterRoleGroupSpec)
 		labels := helper.GroupLabels(r.roleLabels, groupName, mergedCfg.Config.NodeSelector)
 		cm := NewMasterConfigMap(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
 		statefulset := NewStatefulSet(r.scheme, r.instance, r.client, groupName, labels, mergedCfg, mergedCfg.Replicas)

@@ -74,7 +74,7 @@ func NewDatabaseParams(
 type DatabaseConfiguration struct {
 	DbReference    *string
 	DbInline       *DatabaseParams
-	ResourceClient core.ResourceClient
+	ResourceClient *core.ResourceClient
 }
 
 func (d *DatabaseConfiguration) GetRefDatabaseName() string {
@@ -213,16 +213,16 @@ func (d *DatabaseConfiguration) GetURI() (string, error) {
 		if refData, err := d.getDatabaseParamsFromResource(); err != nil {
 			return "", err
 		} else {
-			return toUri(*refData), nil
+			return ToUri(refData), nil
 		}
 	}
 	if d.DbInline != nil {
-		return toUri(*d.DbInline), nil
+		return ToUri(d.DbInline), nil
 	}
 	return "", fmt.Errorf("invalid database configuration, dbReference and dbInline cannot be empty at the same time")
 }
 
-func toUri(params DatabaseParams) string {
+func ToUri(params *DatabaseParams) string {
 	var jdbcPrefix string
 	switch params.DbType {
 	case Mysql:

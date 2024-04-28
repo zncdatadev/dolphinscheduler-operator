@@ -18,8 +18,8 @@ func NewAlerterService(
 	client client.Client,
 	groupName string,
 	labels map[string]string,
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
-) *resource.GenericServiceReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec] {
+	mergedCfg *dolphinv1alpha1.AlerterRoleGroupSpec,
+) *resource.GenericServiceReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.AlerterRoleGroupSpec] {
 	headlessType := resource.Service
 	buidler := resource.NewServiceBuilder(
 		createSvcName(instance.GetName(), groupName),

@@ -16,10 +16,10 @@ func NewWorkerContainerBuilder(
 	resourceSpec *dolphinv1alpha1.ResourcesSpec,
 	envConfigName string,
 	configConfigMapName string,
-	dbSpec *dolphinv1alpha1.DatabaseSpec,
+	dbParams *resource.DatabaseParams,
 ) *ContainerBuilder {
-	if dbSpec == nil {
-		panic("dbSpec is nil")
+	if dbParams == nil {
+		panic("database connection info is nil")
 	}
 	return &ContainerBuilder{
 		ContainerBuilder:        *resource.NewContainerBuilder(image, imagePullPolicy),
@@ -27,7 +27,7 @@ func NewWorkerContainerBuilder(
 		resourceSpec:            resourceSpec,
 		envConfigName:           envConfigName,
 		configConfigMapName:     configConfigMapName,
-		dbSpec:                  dbSpec,
+		dbParams:                dbParams,
 	}
 }
 
@@ -49,7 +49,7 @@ type ContainerBuilder struct {
 	resourceSpec            *dolphinv1alpha1.ResourcesSpec
 	envConfigName           string
 	configConfigMapName     string
-	dbSpec                  *dolphinv1alpha1.DatabaseSpec
+	dbParams                *resource.DatabaseParams
 }
 
 func (c *ContainerBuilder) ContainerPorts() []corev1.ContainerPort {
@@ -149,7 +149,7 @@ func (c *ContainerBuilder) ContainerEnv() []corev1.EnvVar {
 			Value: "false",
 		},
 	}
-	envs = append(envs, common.MakeDataBaseEnvs(c.dbSpec)...)
+	envs = append(envs, common.MakeDataBaseEnvs(c.dbParams)...)
 	return envs
 }
 

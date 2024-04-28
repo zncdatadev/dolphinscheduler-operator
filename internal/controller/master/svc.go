@@ -18,8 +18,8 @@ func NewMasterServiceHeadless(
 	client client.Client,
 	groupName string,
 	labels map[string]string,
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
-) *resource.GenericServiceReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec] {
+	mergedCfg *dolphinv1alpha1.MasterRoleGroupSpec,
+) *resource.GenericServiceReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.MasterRoleGroupSpec] {
 	headlessType := resource.HeadlessService
 	buidler := resource.NewServiceBuilder(
 		createSvcName(instance.GetName(), groupName),

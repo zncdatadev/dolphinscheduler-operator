@@ -17,7 +17,7 @@ func NewMasterConfigMap(
 	client client.Client,
 	groupName string,
 	labels map[string]string,
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
+	mergedCfg *dolphinv1alpha1.MasterRoleGroupSpec,
 ) *ConfigMapReconciler {
 	return &ConfigMapReconciler{
 		MultiResourceReconciler: *core.NewMultiResourceReconciler(
@@ -34,7 +34,7 @@ func NewMasterConfigMap(
 var _ core.MultiResourceReconcilerBuilder = &ConfigMapReconciler{}
 
 type ConfigMapReconciler struct {
-	core.MultiResourceReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec]
+	core.MultiResourceReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.MasterRoleGroupSpec]
 }
 
 func (c *ConfigMapReconciler) Build(ctx context.Context) ([]core.ResourceBuilder, error) {
