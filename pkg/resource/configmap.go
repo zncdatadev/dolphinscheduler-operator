@@ -8,6 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -41,6 +42,8 @@ func (c *ConfigMapBuilder) Build() *corev1.ConfigMap {
 	var data = make(map[string]string)
 	if len(c.ConfigGenerators) != 0 {
 		top := c.ConfigGenerators[0]
+		a := reflect.ValueOf(top).Interface()
+		fmt.Printf("a: %v\n", a)
 		switch top.(type) {
 		case FileContentGenerator:
 			var fileGenerators = make([]FileContentGenerator, 0)
@@ -55,7 +58,7 @@ func (c *ConfigMapBuilder) Build() *corev1.ConfigMap {
 			}
 			data = GenerateAllEnv(envGenerators)
 		default:
-			panic(fmt.Sprintf("config generators not supported: %v", top))
+			panic(fmt.Sprintf("config generators not supported: %v, only support env(k-v) and key-file generators", top))
 		}
 	}
 	return &corev1.ConfigMap{
@@ -101,20 +104,20 @@ func OverrideConfigFileContent(current string, override map[string]string, confi
 	}
 }
 
-type ConfigGenerator[T string | map[string]string] interface {
-	Generate() T
-}
+//type ConfigGenerator[T string | map[string]string] interface {
+//	Generate() T
+//}
 
 // FileContentGenerator generate config
 // we can use this interface to generate config content
 // and use GenerateAllFile function to generate configMap data
 type FileContentGenerator interface {
-	ConfigGenerator[string]
+	Generate() string
 	FileName() string
 }
 
 type EnvGenerator interface {
-	ConfigGenerator[map[string]string]
+	Generate() map[string]string
 }
 
 func GenerateAllFile(confGenerator []FileContentGenerator) map[string]string {
@@ -154,7 +157,8 @@ const (
 // 1. resourceBuilerFunc: a function to create a new resource
 type GeneralConfigMapReconciler[T client.Object, G any] struct {
 	core.GeneralResourceStyleReconciler[T, G]
-	resourceBuilderFunc       func() (*corev1.ConfigMap, error)
+	configMapName             string
+	configGenerator           []any
 	configurationOverrideFunc func() error
 }
 
@@ -166,7 +170,8 @@ func NewGeneralConfigMap[T client.Object, G any](
 	groupName string,
 	mergedLabels map[string]string,
 	mergedCfg G,
-	resourceBuilderFunc func() (*corev1.ConfigMap, error),
+	configMapName string,
+	configGenerator []any,
 	configurationOverrideFunc func() error,
 
 ) *GeneralConfigMapReconciler[T, G] {
@@ -178,14 +183,16 @@ func NewGeneralConfigMap[T client.Object, G any](
 			groupName,
 			mergedLabels,
 			mergedCfg),
-		resourceBuilderFunc:       resourceBuilderFunc,
+		configGenerator:           configGenerator,
+		configMapName:             configMapName,
 		configurationOverrideFunc: configurationOverrideFunc,
 	}
 }
 
 // Build implements the ResourceBuilder interface
 func (c *GeneralConfigMapReconciler[T, G]) Build(_ context.Context) (client.Object, error) {
-	return c.resourceBuilderFunc()
+	builder := NewConfigMapBuilder(c.configMapName, c.Instance.GetNamespace(), c.Labels, c.configGenerator)
+	return builder.Build(), nil
 }
 
 // ConfigurationOverride implement ConfigurationOverride interface

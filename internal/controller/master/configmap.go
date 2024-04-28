@@ -6,7 +6,6 @@ import (
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -46,6 +45,8 @@ func (c *ConfigMapReconciler) Build(ctx context.Context) ([]core.ResourceBuilder
 
 // create env configmap
 func (c *ConfigMapReconciler) createEnvConfigMapReconciler() core.ResourceBuilder {
+	var generators []interface{}
+	generators = append(generators, &common.EnvPropertiesGenerator{})
 	cm := resource.NewGeneralConfigMap(
 		c.Scheme,
 		c.Instance,
@@ -53,26 +54,17 @@ func (c *ConfigMapReconciler) createEnvConfigMapReconciler() core.ResourceBuilde
 		c.GroupName,
 		c.Labels,
 		c.MergedCfg,
-		c.createEnvConfigMap,
+		common.EnvsConfigMapName(c.Instance.GetName(), c.GroupName),
+		generators,
 		nil, // todo
 	)
 	return cm
-}
-
-func (c *ConfigMapReconciler) createEnvConfigMap() (*corev1.ConfigMap, error) {
-	var generators []interface{}
-	generators = append(generators, common.EnvPropertiesGenerator{})
-	builder := resource.NewConfigMapBuilder(
-		common.EnvsConfigMapName(c.Instance.GetName(), c.GroupName),
-		c.Instance.Namespace,
-		c.Labels,
-		generators,
-	)
-	return builder.Build(), nil
 }
 
 // crate config configmap
 func (c *ConfigMapReconciler) createConfigConfigMapReconciler() core.ResourceBuilder {
+	var generators []interface{}
+	generators = append(generators, &common.ConfigPropertiesGenerator{})
 	cm := resource.NewGeneralConfigMap(
 		c.Scheme,
 		c.Instance,
@@ -80,20 +72,9 @@ func (c *ConfigMapReconciler) createConfigConfigMapReconciler() core.ResourceBui
 		c.GroupName,
 		c.Labels,
 		c.MergedCfg,
-		c.createConfigConfigMap,
+		common.ConfigConfigMapName(c.Instance.GetName(), c.GroupName),
+		generators,
 		nil, // todo
 	)
 	return cm
-}
-
-func (c *ConfigMapReconciler) createConfigConfigMap() (*corev1.ConfigMap, error) {
-	var generators []interface{}
-	generators = append(generators, common.ConfigPropertiesGenerator{})
-	builder := resource.NewConfigMapBuilder(
-		common.ConfigConfigMapName(c.Instance.GetName(), c.GroupName),
-		c.Instance.Namespace,
-		c.Labels,
-		generators,
-	)
-	return builder.Build(), nil
 }

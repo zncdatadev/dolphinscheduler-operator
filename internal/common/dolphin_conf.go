@@ -10,7 +10,7 @@ var _ resource.EnvGenerator = &EnvPropertiesGenerator{}
 type EnvPropertiesGenerator struct {
 }
 
-func (e EnvPropertiesGenerator) Generate() map[string]string {
+func (e *EnvPropertiesGenerator) Generate() map[string]string {
 	return map[string]string{
 		"DATA_BASEDIR_PATH":     "/tmp/dolphinscheduler",
 		"DATAX_LAUNCHER":        "/opt/soft/datax/bin/datax.py",

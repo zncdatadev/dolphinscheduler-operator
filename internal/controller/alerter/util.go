@@ -6,11 +6,11 @@ import (
 )
 
 func createDeploymentName(instanceName string, groupName string) string {
-	return util.NewResourceNameGenerator(instanceName, string(core.Api), groupName).GenerateResourceName("")
+	return util.NewResourceNameGenerator(instanceName, string(core.Alerter), groupName).GenerateResourceName("")
 }
 
 func createSvcName(instanceName string, groupName string) string {
-	return util.NewResourceNameGenerator(instanceName, string(core.Api), groupName).GenerateResourceName("")
+	return util.NewResourceNameGenerator(instanceName, string(core.Alerter), groupName).GenerateResourceName("")
 }
 
 func configVolumeName() string {
