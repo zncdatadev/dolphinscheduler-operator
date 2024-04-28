@@ -25,8 +25,8 @@ func NewStatefulSetBuilder(name string, nameSpace string, labels map[string]stri
 // deployment
 
 func NewDeploymentBuilder(name string, nameSpace string, labels map[string]string, replicas int32,
-	containers []corev1.Container) *StatefulSetBuilder {
-	return &StatefulSetBuilder{
+	containers []corev1.Container) *DeploymentBuilder {
+	return &DeploymentBuilder{
 		Name:       name,
 		NameSpace:  nameSpace,
 		Labels:     labels,

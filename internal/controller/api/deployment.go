@@ -56,7 +56,7 @@ func (s *DeploymentReconciler) Build(ctx context.Context) (client.Object, error)
 }
 
 func (s *DeploymentReconciler) CommandOverride(obj client.Object) {
-	dep := obj.(*appv1.StatefulSet)
+	dep := obj.(*appv1.Deployment)
 	containers := dep.Spec.Template.Spec.Containers
 	if cmdOverride := s.MergedCfg.CommandArgsOverrides; cmdOverride != nil {
 		for i := range containers {
@@ -69,7 +69,7 @@ func (s *DeploymentReconciler) CommandOverride(obj client.Object) {
 }
 
 func (s *DeploymentReconciler) EnvOverride(obj client.Object) {
-	dep := obj.(*appv1.StatefulSet)
+	dep := obj.(*appv1.Deployment)
 	containers := dep.Spec.Template.Spec.Containers
 	if envOverride := s.MergedCfg.EnvOverrides; envOverride != nil {
 		for i := range containers {
