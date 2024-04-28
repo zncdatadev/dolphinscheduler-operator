@@ -9,4 +9,63 @@ metadata:
     app.kubernetes.io/created-by: dolphinscheduler-operator
   name: dolphinschedulercluster-sample
 spec:
-  # TODO(user): Add fields here
+  clusterConfig:
+    zookeeperDiscoveryZNode: "sample-dolphinscheduler-znode"
+    database:
+      reference: database-sample
+    s3Bucket:
+      maxConnect: 10
+      pathStyle_access: true
+      reference: s3bucket-sample
+  master:
+    image:
+      pullPolicy: IfNotPresent
+    roleGroups:
+      default:
+        replicas: 1
+        config:
+          resources:
+            cpu:
+              min: 1
+              max: 2
+            memory:
+              limit: "3Gi"
+  worker:
+    image:
+      pullPolicy: IfNotPresent
+    roleGroups:
+      default:
+        replicas: 1
+        config:
+          resources:
+            cpu:
+              min: 1
+              max: 2
+            memory:
+              limit: "3Gi"
+  api:
+    image:
+      pullPolicy: IfNotPresent
+    roleGroups:
+      default:
+        replicas: 1
+        config:
+          resources:
+            cpu:
+              min: 1
+              max: 2
+            memory:
+              limit: "3Gi"
+  alerter:
+    image:
+      pullPolicy: IfNotPresent
+    roleGroups:
+      default:
+        replicas: 1
+        config:
+          resources:
+            cpu:
+              min: 1
+              max: 2
+            memory:
+              limit: "3Gi"

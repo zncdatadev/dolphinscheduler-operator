@@ -2,7 +2,7 @@ package alerter
 
 import (
 	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
-	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -18,16 +18,16 @@ func NewAlerterService(
 	client client.Client,
 	groupName string,
 	labels map[string]string,
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
-) *common.GenericServiceReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec] {
-	headlessType := common.Service
-	buidler := common.NewServiceBuilder(
+	mergedCfg *dolphinv1alpha1.AlerterRoleGroupSpec,
+) *resource.GenericServiceReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.AlerterRoleGroupSpec] {
+	headlessType := resource.Service
+	buidler := resource.NewServiceBuilder(
 		createSvcName(instance.GetName(), groupName),
 		instance.GetNamespace(),
 		labels,
 		makeGroupSvcPorts(),
 	).SetClusterIP(&headlessType)
-	return common.NewGenericServiceReconciler(
+	return resource.NewGenericServiceReconciler(
 		scheme,
 		instance,
 		client,

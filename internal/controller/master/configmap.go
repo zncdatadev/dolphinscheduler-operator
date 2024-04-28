@@ -4,7 +4,8 @@ import (
 	"context"
 	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
-	corev1 "k8s.io/api/core/v1"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -15,10 +16,10 @@ func NewMasterConfigMap(
 	client client.Client,
 	groupName string,
 	labels map[string]string,
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
+	mergedCfg *dolphinv1alpha1.MasterRoleGroupSpec,
 ) *ConfigMapReconciler {
 	return &ConfigMapReconciler{
-		MultiResourceReconciler: *common.NewMultiResourceReconciler(
+		MultiResourceReconciler: *core.NewMultiResourceReconciler(
 			scheme,
 			instance,
 			client,
@@ -29,69 +30,52 @@ func NewMasterConfigMap(
 	}
 }
 
-var _ common.MultiResourceReconcilerBuilder = &ConfigMapReconciler{}
+var _ core.MultiResourceReconcilerBuilder = &ConfigMapReconciler{}
 
 type ConfigMapReconciler struct {
-	common.MultiResourceReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec]
+	core.MultiResourceReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.MasterRoleGroupSpec]
 }
 
-func (c *ConfigMapReconciler) Build(ctx context.Context) ([]common.ResourceBuilder, error) {
-	return []common.ResourceBuilder{
+func (c *ConfigMapReconciler) Build(ctx context.Context) ([]core.ResourceBuilder, error) {
+	return []core.ResourceBuilder{
 		c.createEnvConfigMapReconciler(),
 		c.createConfigConfigMapReconciler(),
 	}, nil
 }
 
 // create env configmap
-func (c *ConfigMapReconciler) createEnvConfigMapReconciler() common.ResourceBuilder {
-	cm := common.NewGeneralConfigMap(
+func (c *ConfigMapReconciler) createEnvConfigMapReconciler() core.ResourceBuilder {
+	var generators []interface{}
+	generators = append(generators, &common.EnvPropertiesGenerator{})
+	cm := resource.NewGeneralConfigMap(
 		c.Scheme,
 		c.Instance,
 		c.Client,
 		c.GroupName,
 		c.Labels,
 		c.MergedCfg,
-		c.createEnvConfigMap,
+		common.EnvsConfigMapName(c.Instance.GetName(), c.GroupName),
+		generators,
 		nil, // todo
 	)
 	return cm
-}
-
-func (c *ConfigMapReconciler) createEnvConfigMap() (*corev1.ConfigMap, error) {
-	var generators []interface{}
-	generators = append(generators, common.EnvPropertiesGenerator{})
-	builder := common.NewConfigMapBuilder(
-		common.EnvsConfigMapName(c.Instance.GetName(), c.GroupName),
-		c.Instance.Namespace,
-		c.Labels,
-		generators,
-	)
-	return builder.Build(), nil
 }
 
 // crate config configmap
-func (c *ConfigMapReconciler) createConfigConfigMapReconciler() common.ResourceBuilder {
-	cm := common.NewGeneralConfigMap(
+func (c *ConfigMapReconciler) createConfigConfigMapReconciler() core.ResourceBuilder {
+	var generators []interface{}
+	generators = append(generators, common.NewConfigPropertiesGenerator(c.Instance.Spec.ClusterConfigSpec.S3Bucket,
+		c.Client, c.Instance.GetNamespace()))
+	cm := resource.NewGeneralConfigMap(
 		c.Scheme,
 		c.Instance,
 		c.Client,
 		c.GroupName,
 		c.Labels,
 		c.MergedCfg,
-		c.createConfigConfigMap,
+		common.ConfigConfigMapName(c.Instance.GetName(), c.GroupName),
+		generators,
 		nil, // todo
 	)
 	return cm
-}
-
-func (c *ConfigMapReconciler) createConfigConfigMap() (*corev1.ConfigMap, error) {
-	var generators []interface{}
-	generators = append(generators, common.ConfigPropertiesGenerator{})
-	builder := common.NewConfigMapBuilder(
-		common.ConfigConfigMapName(c.Instance.GetName(), c.GroupName),
-		c.Instance.Namespace,
-		c.Labels,
-		generators,
-	)
-	return builder.Build(), nil
 }

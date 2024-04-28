@@ -1,7 +1,7 @@
-package common
+package core
 
 import (
-	"github.com/zncdata-labs/dolphinscheduler-operator/internal/util"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/util"
 	"sync"
 )
 

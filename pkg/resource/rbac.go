@@ -1,7 +1,8 @@
-package common
+package resource
 
 import (
 	"context"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,7 +55,7 @@ const (
 
 // GenericServiceAccountReconciler generci service account reconcile
 type GenericServiceAccountReconciler[T client.Object, G any] struct {
-	GeneralResourceStyleReconciler[T, G]
+	core.GeneralResourceStyleReconciler[T, G]
 	saName    string
 	nameSpace string
 }
@@ -70,7 +71,7 @@ func NewServiceAccount[T client.Object](
 	nameSpace string,
 ) *GenericServiceAccountReconciler[T, any] {
 	return &GenericServiceAccountReconciler[T, any]{
-		GeneralResourceStyleReconciler: *NewGeneraResourceStyleReconciler(
+		GeneralResourceStyleReconciler: *core.NewGeneraResourceStyleReconciler(
 			scheme,
 			instance,
 			client,
@@ -96,11 +97,9 @@ func (r *GenericServiceAccountReconciler[T, G]) Build(_ context.Context) (client
 	}, nil
 }
 
-// generic role reconciler
-
 // GenericRoleReconciler generic role reconciler
 type GenericRoleReconciler[T client.Object, G any] struct {
-	GeneralResourceStyleReconciler[T, G]
+	core.GeneralResourceStyleReconciler[T, G]
 	namespace string
 	roleName  string
 	roleType  RbacRoleType
@@ -126,7 +125,7 @@ func NewRole[T client.Object](
 	namespace string,
 ) *GenericRoleReconciler[T, any] {
 	return &GenericRoleReconciler[T, any]{
-		GeneralResourceStyleReconciler: *NewGeneraResourceStyleReconciler(
+		GeneralResourceStyleReconciler: *core.NewGeneraResourceStyleReconciler(
 			scheme,
 			instance,
 			client,
@@ -170,7 +169,7 @@ func (r *GenericRoleReconciler[T, G]) Build(_ context.Context) (client.Object, e
 
 // GenericRoleBindingReconciler generic role binding reconciler
 type GenericRoleBindingReconciler[T client.Object, G any] struct {
-	GeneralResourceStyleReconciler[T, G]
+	core.GeneralResourceStyleReconciler[T, G]
 	namespace       string
 	roleBindingType RbacRoleBindingType
 	roleBindingName string
@@ -196,7 +195,7 @@ func NewRoleBinding[T client.Object](
 	namespace string,
 ) *GenericRoleBindingReconciler[T, any] {
 	return &GenericRoleBindingReconciler[T, any]{
-		GeneralResourceStyleReconciler: *NewGeneraResourceStyleReconciler(
+		GeneralResourceStyleReconciler: *core.NewGeneraResourceStyleReconciler(
 			scheme,
 			instance,
 			client,

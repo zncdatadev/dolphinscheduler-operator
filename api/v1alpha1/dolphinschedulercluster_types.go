@@ -27,23 +27,23 @@ const DolphinCommonPropertiesName = "common.properties"
 const DbInitImage = "apache/dolphinscheduler-tools:3.2.1"
 
 const (
-	MasterPortName       = "master-port"
-	MasterActualPortName = "master-actual-port"
+	MasterPortName       = "port"
+	MasterActualPortName = "actual-port"
 	MasterPort           = 5678
 	MasterActualPort     = 5679
 
-	WorkerPortName       = "worker-port"
-	WorkerActualPortName = "worker-actual-port"
+	WorkerPortName       = "port"
+	WorkerActualPortName = "actual-port"
 	WorkerPort           = 1234
 	WorkerActualPort     = 1235
 
-	ApiPortName       = "api-port"
-	ApiPythonPortName = "api-python-port"
+	ApiPortName       = "port"
+	ApiPythonPortName = "python-port"
 	ApiPort           = 12345
 	ApiPythonPort     = 25333
 
-	AlerterPortName       = "alerter-port"
-	AlerterActualPortName = "alerter-actual-port"
+	AlerterPortName       = "port"
+	AlerterActualPortName = "actual-port"
 	AlerterPort           = 50052
 	AlerterActualPort     = 50053
 )
@@ -190,24 +190,6 @@ type ContainerLoggingSpec struct {
 }
 
 type ConfigOverridesSpec struct {
-}
-
-type RoleGroupSpec struct {
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default:=1
-	Replicas int32 `json:"replicas,omitempty"`
-
-	// +kubebuilder:validation:Required
-	Config *ConfigSpec `json:"config,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	CommandArgsOverrides []string `json:"commandArgsOverrides,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	ConfigOverrides *ConfigOverridesSpec `json:"configOverrides,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	EnvOverrides map[string]string `json:"envOverrides,omitempty"`
 }
 
 type ConfigSpec struct {

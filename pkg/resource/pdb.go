@@ -1,7 +1,8 @@
-package common
+package resource
 
 import (
 	"context"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	policyv1 "k8s.io/api/policy/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -10,16 +11,10 @@ import (
 )
 
 type PDBReconciler[T client.Object] struct {
-	GeneralResourceStyleReconciler[T, any]
+	core.GeneralResourceStyleReconciler[T, any]
 	name   string
 	labels map[string]string
-	pdb    *PdbConfig
-}
-
-type PdbConfig struct {
-	MinAvailable int32
-
-	MaxUnavailable int32
+	pdb    *core.PdbConfig
 }
 
 func NewReconcilePDB[T client.Object](
@@ -28,10 +23,10 @@ func NewReconcilePDB[T client.Object](
 	cr T,
 	labels map[string]string,
 	name string,
-	pdb *PdbConfig,
+	pdb *core.PdbConfig,
 ) *PDBReconciler[T] {
 	return &PDBReconciler[T]{
-		GeneralResourceStyleReconciler: *NewGeneraResourceStyleReconciler[T, any](
+		GeneralResourceStyleReconciler: *core.NewGeneraResourceStyleReconciler[T, any](
 			schema,
 			cr,
 			client,

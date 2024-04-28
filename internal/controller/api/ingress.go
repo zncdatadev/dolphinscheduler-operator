@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
-	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	v1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -16,10 +16,10 @@ func NewIngress(
 	client client.Client,
 	groupName string,
 	labels map[string]string,
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
+	mergedCfg *dolphinv1alpha1.ApiRoleGroupSpec,
 ) *IngressReconciler {
 	return &IngressReconciler{
-		GeneralResourceStyleReconciler: *common.NewGeneraResourceStyleReconciler(
+		GeneralResourceStyleReconciler: *core.NewGeneraResourceStyleReconciler(
 			scheme,
 			instance,
 			client,
@@ -30,10 +30,10 @@ func NewIngress(
 	}
 }
 
-var _ common.ResourceBuilder = &IngressReconciler{}
+var _ core.ResourceBuilder = &IngressReconciler{}
 
 type IngressReconciler struct {
-	common.GeneralResourceStyleReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.RoleGroupSpec]
+	core.GeneralResourceStyleReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.ApiRoleGroupSpec]
 }
 
 func (i *IngressReconciler) Build(ctx context.Context) (client.Object, error) {
@@ -55,7 +55,7 @@ func (i *IngressReconciler) Build(ctx context.Context) (client.Object, error) {
 										Service: &v1.IngressServiceBackend{
 											Name: createSvcName(i.Instance.GetName(), i.GroupName),
 											Port: v1.ServiceBackendPort{
-												Name: "api-port",
+												Name: dolphinv1alpha1.ApiPortName,
 											},
 										},
 									},

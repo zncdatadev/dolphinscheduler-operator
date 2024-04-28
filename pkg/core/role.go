@@ -1,9 +1,9 @@
-package common
+package core
 
 import (
 	"context"
 	"fmt"
-	"github.com/zncdata-labs/dolphinscheduler-operator/internal/util"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/util"
 	"k8s.io/apimachinery/pkg/runtime"
 	"reflect"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -35,19 +35,19 @@ type RoleGroupRecociler interface {
 }
 
 type RoleConfiguration struct {
-	Config      any
-	RoleGroups  []string
-	RolePdbSpec *PdbConfig
+	Config        any
+	RoleGroups    []string
+	RolePdbConfig *PdbConfig
 }
 
 //new role configuration
 
 func NewRoleConfiguration(config any, roleGroups []string,
-	rolePdbSpec *PdbConfig) *RoleConfiguration {
+	rolePdbConfig *PdbConfig) *RoleConfiguration {
 	return &RoleConfiguration{
-		Config:      config,
-		RoleGroups:  roleGroups,
-		RolePdbSpec: rolePdbSpec,
+		Config:        config,
+		RoleGroups:    roleGroups,
+		RolePdbConfig: rolePdbConfig,
 	}
 }
 
@@ -75,11 +75,13 @@ type BaseRoleReconciler[T client.Object] struct {
 	RoleLabels         map[string]string
 	InstanceAttributes InstanceAttributes
 	RoleHelper
-	Role Role
+	Role              Role
+	RolePdbReconciler ResourceReconciler
 }
 
 func NewBaseRoleReconciler[T client.Object](scheme *runtime.Scheme, instance T, client client.Client, role Role,
-	roleLabels map[string]string, instanceAttributes InstanceAttributes, helper RoleHelper) *BaseRoleReconciler[T] {
+	roleLabels map[string]string, instanceAttributes InstanceAttributes, helper RoleHelper,
+	rolePdbReconciler ResourceReconciler) *BaseRoleReconciler[T] {
 	return &BaseRoleReconciler[T]{
 		Scheme:             scheme,
 		Instance:           instance,
@@ -88,6 +90,7 @@ func NewBaseRoleReconciler[T client.Object](scheme *runtime.Scheme, instance T, 
 		Role:               role,
 		RoleLabels:         roleLabels,
 		RoleHelper:         helper,
+		RolePdbReconciler:  rolePdbReconciler,
 	}
 }
 
@@ -98,18 +101,10 @@ func (r *BaseRoleReconciler[T]) MergeConfig() {
 	}
 }
 
-//func (r *BaseRoleReconciler[T]) RoleLabels() map[string]string {
-//	roleLables := RoleLabels{InstanceName: r.Instance.GetName(), Name: string(r.Role)}
-//	mergeLabels := roleLables.GetLabels()
-//	return mergeLabels
-//}
-
 func (r *BaseRoleReconciler[T]) ReconcileRole(ctx context.Context) (ctrl.Result, error) {
 	roleCfg := r.InstanceAttributes.GetRoleConfig(r.Role)
-	// role pdb
-	if roleCfg.Config != nil && roleCfg.RolePdbSpec != nil {
-		pdb := NewReconcilePDB(r.Client, r.Scheme, r.Instance, r.RoleLabels, string(r.Role), roleCfg.RolePdbSpec)
-		res, err := pdb.ReconcileResource(ctx, NewSingleResourceBuilder(pdb))
+	if r.RolePdbReconciler != nil {
+		res, err := SingleResourceDoReconcile(ctx, r.RolePdbReconciler)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -117,6 +112,7 @@ func (r *BaseRoleReconciler[T]) ReconcileRole(ctx context.Context) (ctrl.Result,
 			return res, nil
 		}
 	}
+
 	// reconciler groups
 	for _, name := range roleCfg.RoleGroups {
 		resourceReconcilers := r.RoleHelper.RegisterResources(ctx)
@@ -155,35 +151,41 @@ func NewBaseRoleGroupReconciler[T client.Object](scheme *runtime.Scheme, instanc
 	}
 }
 
-func ReconcilerDoHandler(ctx context.Context, reconcilers []ResourceReconciler) (ctrl.Result, error) {
+func ReconcilersDoReconcile(ctx context.Context, reconcilers []ResourceReconciler) (ctrl.Result, error) {
 	for _, r := range reconcilers {
-		if single, ok := r.(ResourceBuilder); ok {
-			res, err := r.ReconcileResource(ctx, NewSingleResourceBuilder(single))
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-			if res.RequeueAfter > 0 {
-				return res, nil
-			}
-		} else if multi, ok := r.(MultiResourceReconcilerBuilder); ok {
-			// todo : assert reconciler is MultiResourceReconciler
-			res, err := r.ReconcileResource(ctx, NewMultiResourceBuilder(multi))
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-			if res.RequeueAfter > 0 {
-				return res, nil
-			}
-		} else {
-			panic(fmt.Sprintf("unknown resource reconciler builder, actual type: %T", r))
+		res, err := SingleResourceDoReconcile(ctx, r)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if res.RequeueAfter > 0 {
+			return res, nil
 		}
 	}
 	return ctrl.Result{}, nil
 }
 
+func SingleResourceDoReconcile(ctx context.Context, r ResourceReconciler) (ctrl.Result, error) {
+	if single, ok := r.(ResourceBuilder); ok {
+		res, err := r.ReconcileResource(ctx, NewSingleResourceBuilder(single))
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		return res, nil
+	} else if multi, ok := r.(MultiResourceReconcilerBuilder); ok {
+		// todo : assert reconciler is MultiResourceReconciler
+		res, err := r.ReconcileResource(ctx, NewMultiResourceBuilder(multi))
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		return res, nil
+	} else {
+		panic(fmt.Sprintf("unknown resource reconciler builder, actual type: %T", r))
+	}
+}
+
 // ReconcileGroup ReconcileRole implements the Role interface
 func (g *BaseRoleGroupReconciler[T]) ReconcileGroup(ctx context.Context) (ctrl.Result, error) {
-	return ReconcilerDoHandler(ctx, g.Reconcilers)
+	return ReconcilersDoReconcile(ctx, g.Reconcilers)
 }
 
 // MergeObjects merge right to left, if field not in left, it will be added from right,
@@ -247,4 +249,10 @@ func (h *RoleLabelHelper) RoleLabels(instanceName string, role Role) map[string]
 	roleLabels := RoleLabels{InstanceName: instanceName, Name: string(role)}
 	mergeLabels := roleLabels.GetLabels()
 	return mergeLabels
+}
+
+type PdbConfig struct {
+	MinAvailable int32
+
+	MaxUnavailable int32
 }

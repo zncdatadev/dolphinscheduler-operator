@@ -1,7 +1,8 @@
-package common
+package resource
 
 import (
 	"fmt"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	commonsv1alph1 "github.com/zncdata-labs/operator-go/pkg/apis/commons/v1alpha1"
 	"github.com/zncdata-labs/operator-go/pkg/util"
 	corev1 "k8s.io/api/core/v1"
@@ -73,7 +74,7 @@ func NewDatabaseParams(
 type DatabaseConfiguration struct {
 	DbReference    *string
 	DbInline       *DatabaseParams
-	ResourceClient ResourceClient
+	ResourceClient *core.ResourceClient
 }
 
 func (d *DatabaseConfiguration) GetRefDatabaseName() string {
@@ -212,16 +213,16 @@ func (d *DatabaseConfiguration) GetURI() (string, error) {
 		if refData, err := d.getDatabaseParamsFromResource(); err != nil {
 			return "", err
 		} else {
-			return toUri(*refData), nil
+			return ToUri(refData), nil
 		}
 	}
 	if d.DbInline != nil {
-		return toUri(*d.DbInline), nil
+		return ToUri(d.DbInline), nil
 	}
 	return "", fmt.Errorf("invalid database configuration, dbReference and dbInline cannot be empty at the same time")
 }
 
-func toUri(params DatabaseParams) string {
+func ToUri(params *DatabaseParams) string {
 	var jdbcPrefix string
 	switch params.DbType {
 	case Mysql:

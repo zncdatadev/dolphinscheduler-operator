@@ -1,4 +1,4 @@
-package common
+package core
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 )
 
 type ClusterReconcileRequirement interface {
-	ClusterPreReconcile
 	ClusterRegistry
 }
 
@@ -17,10 +16,6 @@ type ClusterRegistry interface {
 
 type DiscoveryReconciler interface {
 	ReconcileDiscovery() (ctrl.Result, error)
-}
-
-type ClusterPreReconcile interface {
-	PreReconcile()
 }
 
 type ClusterReconciler struct {
@@ -42,11 +37,11 @@ func (c *ClusterReconciler) SetDiscoveryReconciler(reconciler DiscoveryReconcile
 
 func (c *ClusterReconciler) ReconcileCluster(ctx context.Context) (ctrl.Result, error) {
 	// pre-reconcile
-	c.ClusterReconcileRequirement.PreReconcile()
+	c.PreReconcile()
 
 	// reconcile resource of cluster level
 	if resources := c.ClusterReconcileRequirement.RegisterResources(); len(resources) > 0 {
-		res, err := ReconcilerDoHandler(ctx, resources)
+		res, err := ReconcilersDoReconcile(ctx, resources)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -77,4 +72,10 @@ func (c *ClusterReconciler) ReconcileCluster(ctx context.Context) (ctrl.Result, 
 		}
 	}
 	return ctrl.Result{}, nil
+}
+func (c *ClusterReconciler) PreReconcile() {
+	roles := c.RegisterRoles()
+	for _, role := range roles {
+		role.MergeConfig()
+	}
 }

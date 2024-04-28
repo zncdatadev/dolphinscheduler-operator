@@ -1,4 +1,4 @@
-package common
+package core
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var log = ctrl.Log.WithName("resourceFetcher")
+var resourceLog = ctrl.Log.WithName("resourceFetcher")
 
 type ResourceClient struct {
 	Ctx       context.Context
@@ -35,9 +35,9 @@ func (r *ResourceClient) Get(obj client.Object) error {
 	if err := r.Client.Get(r.Ctx, client.ObjectKey{Namespace: r.Namespace, Name: name}, obj); err != nil {
 		opt := []any{"ns", r.Namespace, "name", name, "kind", kind}
 		if apierrors.IsNotFound(err) {
-			log.Error(err, "Fetch resource NotFound", opt...)
+			resourceLog.Error(err, "Fetch resource NotFound", opt...)
 		} else {
-			log.Error(err, "Fetch resource occur some unknown err", opt...)
+			resourceLog.Error(err, "Fetch resource occur some unknown err", opt...)
 		}
 		return err
 	}

@@ -3,6 +3,8 @@ package worker
 import (
 	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
+	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
 	corev1 "k8s.io/api/core/v1"
 	"strconv"
 )
@@ -14,40 +16,40 @@ func NewWorkerContainerBuilder(
 	resourceSpec *dolphinv1alpha1.ResourcesSpec,
 	envConfigName string,
 	configConfigMapName string,
-	dbSpec *dolphinv1alpha1.DatabaseSpec,
+	dbParams *resource.DatabaseParams,
 ) *ContainerBuilder {
-	if dbSpec == nil {
-		panic("dbSpec is nil")
+	if dbParams == nil {
+		panic("database connection info is nil")
 	}
 	return &ContainerBuilder{
-		ContainerBuilder:        *common.NewContainerBuilder(image, imagePullPolicy),
+		ContainerBuilder:        *resource.NewContainerBuilder(image, imagePullPolicy),
 		zookeeperDiscoveryZNode: zookeeperDiscoveryZNode,
 		resourceSpec:            resourceSpec,
 		envConfigName:           envConfigName,
 		configConfigMapName:     configConfigMapName,
-		dbSpec:                  dbSpec,
+		dbParams:                dbParams,
 	}
 }
 
 type ContainerWorkerBuilderType interface {
-	common.ContainerName
-	common.ContainerEnv
-	common.ContainerEnvFrom
-	common.VolumeMount
-	common.LivenessProbe
-	common.ReadinessProbe
-	common.ContainerPorts
+	resource.ContainerName
+	resource.ContainerEnv
+	resource.ContainerEnvFrom
+	resource.VolumeMount
+	resource.LivenessProbe
+	resource.ReadinessProbe
+	resource.ContainerPorts
 }
 
 var _ ContainerWorkerBuilderType = &ContainerBuilder{}
 
 type ContainerBuilder struct {
-	common.ContainerBuilder
+	resource.ContainerBuilder
 	zookeeperDiscoveryZNode string
 	resourceSpec            *dolphinv1alpha1.ResourcesSpec
 	envConfigName           string
 	configConfigMapName     string
-	dbSpec                  *dolphinv1alpha1.DatabaseSpec
+	dbParams                *resource.DatabaseParams
 }
 
 func (c *ContainerBuilder) ContainerPorts() []corev1.ContainerPort {
@@ -98,7 +100,7 @@ func (c *ContainerBuilder) ContainerEnv() []corev1.EnvVar {
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: c.zookeeperDiscoveryZNode,
 					},
-					Key: common.ZookeeperDiscoveryKey,
+					Key: core.ZookeeperDiscoveryKey,
 				},
 			},
 		},
@@ -147,7 +149,7 @@ func (c *ContainerBuilder) ContainerEnv() []corev1.EnvVar {
 			Value: "false",
 		},
 	}
-	envs = append(envs, common.MakeDataBaseEnvs(c.dbSpec)...)
+	envs = append(envs, common.MakeDataBaseEnvs(c.dbParams)...)
 	return envs
 }
 
@@ -204,5 +206,7 @@ func (c *ContainerBuilder) ReadinessProbe() *corev1.Probe {
 }
 
 func (c *ContainerBuilder) ContainerName() string {
-	return string(common.Worker)
+	return string(ContainerWorker)
 }
+
+const ContainerWorker resource.ContainerComponent = resource.ContainerComponent(core.Worker)
