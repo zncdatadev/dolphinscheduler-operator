@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"fmt"
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	commonsv1alpha1 "github.com/zncdata-labs/operator-go/pkg/apis/commons/v1alpha1"
 	"github.com/zncdata-labs/operator-go/pkg/util"
@@ -26,7 +27,7 @@ type S3Params struct {
 type S3Configuration struct {
 	S3Reference    *string
 	S3Inline       *S3Params
-	ResourceClient core.ResourceClient
+	ResourceClient *core.ResourceClient
 }
 
 func (s *S3Configuration) GetRefBucketName() string {
@@ -91,6 +92,16 @@ func (s *S3Configuration) GetCredential(name string) (*S3Credential, error) {
 
 func (s *S3Configuration) ExistingS3Bucket() bool {
 	return s.S3Reference != nil
+}
+
+func (s *S3Configuration) GetS3Params() (*S3Params, error) {
+	if s.S3Reference != nil {
+		return s.GetS3ParamsFromResource()
+	}
+	if s.S3Inline != nil {
+		return s.GetS3ParamsFromInline()
+	}
+	return nil, fmt.Errorf("invalid s3 configuration, s3Reference and s3Inline cannot be empty at the same time")
 }
 
 func (s *S3Configuration) GetS3ParamsFromResource() (*S3Params, error) {

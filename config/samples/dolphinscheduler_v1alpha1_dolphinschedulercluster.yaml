@@ -13,6 +13,10 @@ spec:
     zookeeperDiscoveryZNode: "sample-dolphinscheduler-znode"
     database:
       reference: database-sample
+    s3Bucket:
+      maxConnect: 10
+      pathStyle_access: true
+      reference: s3bucket-sample
   master:
     image:
       pullPolicy: IfNotPresent

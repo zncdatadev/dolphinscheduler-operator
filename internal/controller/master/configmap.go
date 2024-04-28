@@ -64,7 +64,8 @@ func (c *ConfigMapReconciler) createEnvConfigMapReconciler() core.ResourceBuilde
 // crate config configmap
 func (c *ConfigMapReconciler) createConfigConfigMapReconciler() core.ResourceBuilder {
 	var generators []interface{}
-	generators = append(generators, &common.ConfigPropertiesGenerator{})
+	generators = append(generators, common.NewConfigPropertiesGenerator(c.Instance.Spec.ClusterConfigSpec.S3Bucket,
+		c.Client, c.Instance.GetNamespace()))
 	cm := resource.NewGeneralConfigMap(
 		c.Scheme,
 		c.Instance,
