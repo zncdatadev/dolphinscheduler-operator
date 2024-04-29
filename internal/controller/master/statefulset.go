@@ -7,20 +7,13 @@ import (
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/util"
-	appv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ resource.WorkloadResourceType = &StatefulSetReconciler{}
-
-type StatefulSetReconciler struct {
-	core.WorkloadStyleReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.MasterRoleGroupSpec]
-}
-
 func NewStatefulSet(
+	ctx context.Context,
 	scheme *runtime.Scheme,
 	instance *dolphinv1alpha1.DolphinschedulerCluster,
 	client client.Client,
@@ -28,73 +21,73 @@ func NewStatefulSet(
 	labels map[string]string,
 	mergedCfg *dolphinv1alpha1.MasterRoleGroupSpec,
 	replicate int32,
-) *StatefulSetReconciler {
-	return &StatefulSetReconciler{
-		WorkloadStyleReconciler: *core.NewWorkloadStyleReconciler(
-			scheme,
-			instance,
-			client,
-			groupName,
-			labels,
-			mergedCfg,
-			replicate,
-		),
+) *resource.GenericStatefulSetReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.MasterRoleGroupSpec] {
+	requirements := newStatefulSetBuilderRequirements(ctx, instance, client, mergedCfg, groupName, labels, replicate)
+	return resource.NewGenericStatefulSetReconciler(scheme, instance, client, groupName, labels, mergedCfg, replicate,
+		requirements)
+}
+
+func newStatefulSetBuilderRequirements(
+	ctx context.Context, instance *dolphinv1alpha1.DolphinschedulerCluster, client client.Client,
+	mergedCfg *dolphinv1alpha1.MasterRoleGroupSpec, groupName string,
+	labels map[string]string, replicas int32) *StatefulSetBuilderRequirements {
+	containers := createContainers(instance, groupName, client, mergedCfg, ctx)
+	workloadResourceRequirements := resource.NewGenericWorkloadRequirements(string(core.Master), &containers,
+		mergedCfg.CommandArgsOverrides, mergedCfg.EnvOverrides, &instance.Status.Conditions)
+	return &StatefulSetBuilderRequirements{
+		instance:                     instance,
+		groupName:                    groupName,
+		labels:                       labels,
+		replicas:                     replicas,
+		containers:                   containers,
+		WorkloadResourceRequirements: workloadResourceRequirements,
 	}
 }
 
-func (s *StatefulSetReconciler) Build(ctx context.Context) (client.Object, error) {
+var _ resource.WorkloadBuilderRequirements = &StatefulSetBuilderRequirements{}
+
+type StatefulSetBuilderRequirements struct {
+	instance   *dolphinv1alpha1.DolphinschedulerCluster
+	labels     map[string]string
+	groupName  string
+	replicas   int32
+	containers []corev1.Container
+	core.WorkloadResourceRequirements
+}
+
+func (s *StatefulSetBuilderRequirements) Build(ctx context.Context) (client.Object, error) {
+	builder := s.createStatefulSetBuilder(s.containers)
+	return builder.Build(ctx)
+}
+
+func (s *StatefulSetBuilderRequirements) createStatefulSetBuilder(containers []corev1.Container) *resource.StatefulSetBuilder {
 	builder := resource.NewStatefulSetBuilder(
-		createStatefulSetName(s.Instance.GetName(), s.GroupName),
-		s.Instance.Namespace,
-		s.Labels,
-		s.Replicas,
-		createSvcName(s.Instance.GetName(), s.GroupName),
-		s.makeMasterContainer(ctx),
+		createStatefulSetName(s.instance.GetName(), s.groupName),
+		s.instance.Namespace,
+		s.labels,
+		s.replicas,
+		createSvcName(s.instance.GetName(), s.groupName),
+		containers,
 	)
-	builder.SetServiceAccountName(common.CreateServiceAccountName(s.Instance.GetName()))
-	builder.SetVolumes(s.volumes())
-	return builder.Build(), nil
-}
-func (s *StatefulSetReconciler) CommandOverride(obj client.Object) {
-	dep := obj.(*appv1.StatefulSet)
-	containers := dep.Spec.Template.Spec.Containers
-	if cmdOverride := s.MergedCfg.CommandArgsOverrides; cmdOverride != nil {
-		for i := range containers {
-			if containers[i].Name == string(core.Master) {
-				containers[i].Command = cmdOverride
-				break
-			}
-		}
-	}
+	builder.SetServiceAccountName(common.CreateServiceAccountName(s.instance.GetName()))
+	builder.SetVolumes(volumes(s.instance.GetName(), s.groupName))
+	return builder
 }
 
-func (s *StatefulSetReconciler) EnvOverride(obj client.Object) {
-	dep := obj.(*appv1.StatefulSet)
-	containers := dep.Spec.Template.Spec.Containers
-	if envOverride := s.MergedCfg.EnvOverrides; envOverride != nil {
-		for i := range containers {
-			if containers[i].Name == string(core.Master) {
-				envVars := containers[i].Env
-				common.OverrideEnvVars(&envVars, s.MergedCfg.EnvOverrides)
-				break
-			}
-		}
-	}
-}
-
-func (s *StatefulSetReconciler) LogOverride(_ client.Object) {
-	// do nothing, see name node
-}
-
-func (s *StatefulSetReconciler) makeMasterContainer(ctx context.Context) []corev1.Container {
-	imageSpec := s.Instance.Spec.Master.Image
-	resourceSpec := s.MergedCfg.Config.Resources
-	zNode := s.Instance.Spec.ClusterConfigSpec.ZookeeperDiscoveryZNode
+func createContainers(
+	instance *dolphinv1alpha1.DolphinschedulerCluster,
+	groupName string,
+	client client.Client,
+	mergedCfg *dolphinv1alpha1.MasterRoleGroupSpec,
+	ctx context.Context) []corev1.Container {
+	imageSpec := instance.Spec.Master.Image
+	resourceSpec := mergedCfg.Config.Resources
+	zNode := instance.Spec.ClusterConfigSpec.ZookeeperDiscoveryZNode
 	imageName := util.ImageRepository(imageSpec.Repository, imageSpec.Tag)
-	configConfigMapName := common.ConfigConfigMapName(s.Instance.GetName(), s.GroupName)
-	envsConfigMapName := common.EnvsConfigMapName(s.Instance.GetName(), s.GroupName)
-	_, dbParams := common.ExtractDataBaseReference(s.Instance.Spec.ClusterConfigSpec.Database, ctx, s.Client, s.Instance.GetNamespace())
-	builder := NewMasterContainerBuilder(
+	configConfigMapName := common.ConfigConfigMapName(instance.GetName(), groupName)
+	envsConfigMapName := common.EnvsConfigMapName(instance.GetName(), groupName)
+	_, dbParams := common.ExtractDataBaseReference(instance.Spec.ClusterConfigSpec.Database, ctx, client, instance.GetNamespace())
+	containerBuilder := NewMasterContainerBuilder(
 		imageName,
 		imageSpec.PullPolicy,
 		zNode,
@@ -103,26 +96,20 @@ func (s *StatefulSetReconciler) makeMasterContainer(ctx context.Context) []corev
 		configConfigMapName,
 		dbParams,
 	)
-	dolphinContainer := builder.Build(builder)
-	return []corev1.Container{
-		dolphinContainer,
-	}
+	dolphinContainer := containerBuilder.Build(containerBuilder)
+	return []corev1.Container{dolphinContainer}
 }
 
 // make volumes
-func (s *StatefulSetReconciler) volumes() []resource.VolumeSpec {
+func volumes(instanceName string, groupName string) []resource.VolumeSpec {
 	return []resource.VolumeSpec{
 		{
 			Name:       configVolumeName(),
 			SourceType: resource.ConfigMap,
 			Params: &resource.VolumeSourceParams{
 				ConfigMap: resource.ConfigMapSpec{
-					Name: common.ConfigConfigMapName(s.Instance.GetName(), s.GroupName),
+					Name: common.ConfigConfigMapName(instanceName, groupName),
 				}},
 		},
 	}
-}
-
-func (s *StatefulSetReconciler) GetConditions() *[]metav1.Condition {
-	return &s.Instance.Status.Conditions
 }

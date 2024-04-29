@@ -69,6 +69,10 @@ type WorkloadOverride interface {
 	LogOverride(resource client.Object)
 }
 
+type WorkloadResourceRequirements interface {
+	ConditionsGetter
+	WorkloadOverride
+}
 type ConfigurationOverride interface {
 	ConfigurationOverride(resource client.Object)
 }
@@ -326,7 +330,8 @@ func (s *WorkloadStyleUncheckedReconciler[T, G]) DoReconcile(
 //  2. logging override can support
 type WorkloadStyleReconciler[T client.Object, G any] struct {
 	BaseResourceReconciler[T, G]
-	Replicas int32
+	Replicas                int32
+	workloadResourceHandler WorkloadResourceRequirements
 }
 
 func NewWorkloadStyleReconciler[T client.Object, G any](
@@ -337,6 +342,7 @@ func NewWorkloadStyleReconciler[T client.Object, G any](
 	mergedLabels map[string]string,
 	mergedCfg G,
 	replicas int32,
+	workloadHandler WorkloadResourceRequirements,
 ) *WorkloadStyleReconciler[T, G] {
 	return &WorkloadStyleReconciler[T, G]{
 		BaseResourceReconciler: *NewBaseResourceReconciler[T, G](
@@ -346,7 +352,8 @@ func NewWorkloadStyleReconciler[T client.Object, G any](
 			groupName,
 			mergedLabels,
 			mergedCfg),
-		Replicas: replicas,
+		Replicas:                replicas,
+		workloadResourceHandler: workloadHandler,
 	}
 }
 
@@ -359,12 +366,17 @@ func (s *WorkloadStyleReconciler[T, G]) DoReconcile(
 	// check if the resource is satisfied
 	// if not, return requeue
 	// if satisfied, return nil
-	if override, ok := instance.(WorkloadOverride); ok {
-		override.CommandOverride(resource)
-		override.EnvOverride(resource)
-		override.LogOverride(resource)
-	} else {
-		panic("resource is not WorkloadOverride")
+	//if override, ok := instance.(WorkloadOverride); ok {
+	//	override.CommandOverride(resource)
+	//	override.EnvOverride(resource)
+	//	override.LogOverride(resource)
+	//} else {
+	//	panic("resource is not WorkloadOverride")
+	//}
+	if s.workloadResourceHandler != nil {
+		s.workloadResourceHandler.CommandOverride(resource)
+		s.workloadResourceHandler.EnvOverride(resource)
+		s.workloadResourceHandler.LogOverride(resource)
 	}
 
 	if res, err := s.Apply(ctx, resource, time.Second*10); err != nil {
@@ -374,11 +386,11 @@ func (s *WorkloadStyleReconciler[T, G]) DoReconcile(
 	}
 
 	// Check if the pods are satisfied
-	return s.CheckPodsSatisfied(ctx, instance)
+	return s.CheckPodsSatisfied(ctx, s.workloadResourceHandler)
 }
 
 // CheckPodsSatisfied check if the pods are satisfied
-func (s *WorkloadStyleReconciler[T, G]) CheckPodsSatisfied(ctx context.Context, handler ResourceHandler) (ctrl.Result, error) {
+func (s *WorkloadStyleReconciler[T, G]) CheckPodsSatisfied(ctx context.Context, handler WorkloadResourceRequirements) (ctrl.Result, error) {
 	// Check if the pods are satisfied
 	satisfied, err := s.CheckPodReplicas(ctx)
 	if err != nil {
@@ -431,7 +443,7 @@ func (s *WorkloadStyleReconciler[T, G]) updateStatus(
 	status metav1.ConditionStatus,
 	reason string,
 	message string,
-	instance ResourceHandler) error {
+	instance WorkloadResourceRequirements) error {
 	if conditionHandler, ok := instance.(ConditionsGetter); ok {
 		apimeta.SetStatusCondition(conditionHandler.GetConditions(), metav1.Condition{
 			Type:               opgostatus.ConditionTypeAvailable,

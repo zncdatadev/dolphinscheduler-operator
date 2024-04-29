@@ -7,20 +7,13 @@ import (
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/util"
-	appv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ resource.WorkloadResourceType = &DeploymentReconciler{}
-
-type DeploymentReconciler struct {
-	core.WorkloadStyleUncheckedReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.ApiRoleGroupSpec]
-}
-
 func NewDeployment(
+	ctx context.Context,
 	scheme *runtime.Scheme,
 	instance *dolphinv1alpha1.DolphinschedulerCluster,
 	client client.Client,
@@ -28,73 +21,71 @@ func NewDeployment(
 	labels map[string]string,
 	mergedCfg *dolphinv1alpha1.ApiRoleGroupSpec,
 	replicate int32,
-) *DeploymentReconciler {
-	return &DeploymentReconciler{
-		WorkloadStyleUncheckedReconciler: *core.NewWorkloadStyleUncheckedReconciler(
-			scheme,
-			instance,
-			client,
-			groupName,
-			labels,
-			mergedCfg,
-			replicate,
-		),
+) *resource.GenericDeploymentReconciler[*dolphinv1alpha1.DolphinschedulerCluster, *dolphinv1alpha1.ApiRoleGroupSpec] {
+	requirements := newDeploymentBuilderRequirements(ctx, instance, client, mergedCfg, groupName, labels, replicate)
+	return resource.NewGenericDeploymentReconciler(scheme, instance, client, groupName, labels, mergedCfg, replicate, requirements)
+}
+
+func newDeploymentBuilderRequirements(
+	ctx context.Context, instance *dolphinv1alpha1.DolphinschedulerCluster, client client.Client,
+	mergedCfg *dolphinv1alpha1.ApiRoleGroupSpec, groupName string,
+	labels map[string]string, replicas int32) *DeploymentBuilderRequirements {
+	containers := createContainers(instance, groupName, client, mergedCfg, ctx)
+	workloadResourceRequirements := resource.NewGenericWorkloadRequirements(string(core.Api), &containers,
+		mergedCfg.CommandArgsOverrides, mergedCfg.EnvOverrides, &instance.Status.Conditions)
+	return &DeploymentBuilderRequirements{
+		instance:                     instance,
+		groupName:                    groupName,
+		labels:                       labels,
+		replicas:                     replicas,
+		containers:                   containers,
+		WorkloadResourceRequirements: workloadResourceRequirements,
 	}
 }
 
-func (s *DeploymentReconciler) Build(ctx context.Context) (client.Object, error) {
+var _ resource.WorkloadBuilderRequirements = &DeploymentBuilderRequirements{}
+
+type DeploymentBuilderRequirements struct {
+	instance   *dolphinv1alpha1.DolphinschedulerCluster
+	labels     map[string]string
+	groupName  string
+	replicas   int32
+	containers []corev1.Container
+	core.WorkloadResourceRequirements
+}
+
+func (s *DeploymentBuilderRequirements) Build(ctx context.Context) (client.Object, error) {
+	builder := s.createDeploymentBuilder(s.containers)
+	return builder.Build(ctx)
+}
+
+func (s *DeploymentBuilderRequirements) createDeploymentBuilder(containers []corev1.Container) *resource.DeploymentBuilder {
 	builder := resource.NewDeploymentBuilder(
-		createDeploymentName(s.Instance.GetName(), s.GroupName),
-		s.Instance.Namespace,
-		s.Labels,
-		s.Replicas,
-		s.makeApiContainer(ctx),
+		createDeploymentName(s.instance.GetName(), s.groupName),
+		s.instance.Namespace,
+		s.labels,
+		s.replicas,
+		containers,
 	)
-	builder.SetServiceAccountName(common.CreateServiceAccountName(s.Instance.GetName()))
-	builder.SetVolumes(s.volumes())
-	return builder.Build(), nil
+	builder.SetServiceAccountName(common.CreateServiceAccountName(s.instance.GetName()))
+	builder.SetVolumes(volumes(s.instance.GetName(), s.groupName))
+	return builder
 }
 
-func (s *DeploymentReconciler) CommandOverride(obj client.Object) {
-	dep := obj.(*appv1.Deployment)
-	containers := dep.Spec.Template.Spec.Containers
-	if cmdOverride := s.MergedCfg.CommandArgsOverrides; cmdOverride != nil {
-		for i := range containers {
-			if containers[i].Name == string(core.Api) {
-				containers[i].Command = cmdOverride
-				break
-			}
-		}
-	}
-}
-
-func (s *DeploymentReconciler) EnvOverride(obj client.Object) {
-	dep := obj.(*appv1.Deployment)
-	containers := dep.Spec.Template.Spec.Containers
-	if envOverride := s.MergedCfg.EnvOverrides; envOverride != nil {
-		for i := range containers {
-			if containers[i].Name == string(core.Api) {
-				envVars := containers[i].Env
-				common.OverrideEnvVars(&envVars, s.MergedCfg.EnvOverrides)
-				break
-			}
-		}
-	}
-}
-
-func (s *DeploymentReconciler) LogOverride(_ client.Object) {
-	// do nothing, see name node
-}
-
-func (s *DeploymentReconciler) makeApiContainer(ctx context.Context) []corev1.Container {
-	imageSpec := s.Instance.Spec.Api.Image
-	resourceSpec := s.MergedCfg.Config.Resources
-	zNode := s.Instance.Spec.ClusterConfigSpec.ZookeeperDiscoveryZNode
+func createContainers(
+	instance *dolphinv1alpha1.DolphinschedulerCluster,
+	groupName string,
+	client client.Client,
+	mergedCfg *dolphinv1alpha1.ApiRoleGroupSpec,
+	ctx context.Context) []corev1.Container {
+	imageSpec := instance.Spec.Api.Image
+	resourceSpec := mergedCfg.Config.Resources
+	zNode := instance.Spec.ClusterConfigSpec.ZookeeperDiscoveryZNode
 	imageName := util.ImageRepository(imageSpec.Repository, imageSpec.Tag)
-	configConfigMapName := common.ConfigConfigMapName(s.Instance.GetName(), s.GroupName)
-	envsConfigMapName := common.EnvsConfigMapName(s.Instance.GetName(), s.GroupName)
-	_, dbParams := common.ExtractDataBaseReference(s.Instance.Spec.ClusterConfigSpec.Database, ctx, s.Client, s.Instance.GetNamespace())
-	builder := NewApiContainerBuilder(
+	configConfigMapName := common.ConfigConfigMapName(instance.GetName(), groupName)
+	envsConfigMapName := common.EnvsConfigMapName(instance.GetName(), groupName)
+	_, dbParams := common.ExtractDataBaseReference(instance.Spec.ClusterConfigSpec.Database, ctx, client, instance.GetNamespace())
+	containerBuilder := NewApiContainerBuilder(
 		imageName,
 		imageSpec.PullPolicy,
 		zNode,
@@ -103,26 +94,20 @@ func (s *DeploymentReconciler) makeApiContainer(ctx context.Context) []corev1.Co
 		configConfigMapName,
 		dbParams,
 	)
-	dolphinContainer := builder.Build(builder)
-	return []corev1.Container{
-		dolphinContainer,
-	}
+	dolphinContainer := containerBuilder.Build(containerBuilder)
+	return []corev1.Container{dolphinContainer}
 }
 
 // make volumes
-func (s *DeploymentReconciler) volumes() []resource.VolumeSpec {
+func volumes(instanceName string, groupName string) []resource.VolumeSpec {
 	return []resource.VolumeSpec{
 		{
 			Name:       configVolumeName(),
 			SourceType: resource.ConfigMap,
 			Params: &resource.VolumeSourceParams{
 				ConfigMap: resource.ConfigMapSpec{
-					Name: common.ConfigConfigMapName(s.Instance.GetName(), s.GroupName),
+					Name: common.ConfigConfigMapName(instanceName, groupName),
 				}},
 		},
 	}
-}
-
-func (s *DeploymentReconciler) GetConditions() *[]metav1.Condition {
-	return &s.Instance.Status.Conditions
 }

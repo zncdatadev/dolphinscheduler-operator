@@ -1,14 +1,67 @@
 package resource
 
 import (
+	"context"
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// statefulSet
+func NewGenericStatefulSetReconciler[T client.Object, G any](
+	scheme *runtime.Scheme,
+	instance T,
+	client client.Client,
+	groupName string,
+	mergedLabels map[string]string,
+	mergedCfg G,
+	replicas int32,
+	requirements WorkloadBuilderRequirements,
+) *GenericStatefulSetReconciler[T, G] {
+	return &GenericStatefulSetReconciler[T, G]{
+		WorkloadStyleReconciler: *core.NewWorkloadStyleReconciler[T, G](
+			scheme,
+			instance,
+			client,
+			groupName,
+			mergedLabels,
+			mergedCfg,
+			replicas,
+			requirements,
+		),
+		requirements: requirements,
+	}
+}
+
+func NewGenericDeploymentReconciler[T client.Object, G any](
+	scheme *runtime.Scheme,
+	instance T,
+	client client.Client,
+	groupName string,
+	mergedLabels map[string]string,
+	mergedCfg G,
+	replicas int32,
+	requirements WorkloadBuilderRequirements,
+) *GenericDeploymentReconciler[T, G] {
+	return &GenericDeploymentReconciler[T, G]{
+		WorkloadStyleReconciler: *core.NewWorkloadStyleReconciler[T, G](
+			scheme,
+			instance,
+			client,
+			groupName,
+			mergedLabels,
+			mergedCfg,
+			replicas,
+			requirements,
+		),
+		requirements: requirements,
+	}
+}
+
+// statefulSet builder
 
 func NewStatefulSetBuilder(name string, nameSpace string, labels map[string]string, replicas int32,
 	serviceName string, containers []corev1.Container) *StatefulSetBuilder {
@@ -22,7 +75,7 @@ func NewStatefulSetBuilder(name string, nameSpace string, labels map[string]stri
 	}
 }
 
-// deployment
+// deployment builder
 
 func NewDeploymentBuilder(name string, nameSpace string, labels map[string]string, replicas int32,
 	containers []corev1.Container) *DeploymentBuilder {
@@ -32,6 +85,21 @@ func NewDeploymentBuilder(name string, nameSpace string, labels map[string]strin
 		Labels:     labels,
 		Replicas:   replicas,
 		Containers: containers,
+	}
+}
+
+func NewGenericWorkloadRequirements(
+	mainContainerName string,
+	containers *[]corev1.Container,
+	cmdOverride []string,
+	envOverrides map[string]string,
+	instanceCondition *[]metav1.Condition) *GenericWorkloadOverrideHandler {
+	return &GenericWorkloadOverrideHandler{
+		MainContainerName: mainContainerName,
+		Containers:        containers,
+		CmdOverride:       cmdOverride,
+		EnvOverrides:      envOverrides,
+		InstanceCondition: instanceCondition,
 	}
 }
 
@@ -184,7 +252,7 @@ func (s *StatefulSetBuilder) SetPvcTemplates(templates []VolumeClaimTemplateSpec
 	return s
 }
 
-func (s *StatefulSetBuilder) Build() *appsv1.StatefulSet {
+func (s *StatefulSetBuilder) Build(_ context.Context) (client.Object, error) {
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.Name,
@@ -223,7 +291,7 @@ func (s *StatefulSetBuilder) Build() *appsv1.StatefulSet {
 	if len(s.PvcTemplates) > 0 {
 		statefulSet.Spec.VolumeClaimTemplates = s.createPvcTemplates()
 	}
-	return statefulSet
+	return statefulSet, nil
 }
 
 // create statefulSet volumes
@@ -288,7 +356,7 @@ func (d *DeploymentBuilder) SetInitContainers(containers []corev1.Container) *De
 	return d
 }
 
-func (d *DeploymentBuilder) Build() *appsv1.Deployment {
+func (d *DeploymentBuilder) Build(_ context.Context) (client.Object, error) {
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      d.Name,
@@ -319,7 +387,7 @@ func (d *DeploymentBuilder) Build() *appsv1.Deployment {
 	if len(d.Volumes) > 0 {
 		deployment.Spec.Template.Spec.Volumes = d.createVolumes()
 	}
-	return deployment
+	return deployment, nil
 }
 
 // create deployment volumes
@@ -333,4 +401,102 @@ func (d *DeploymentBuilder) createVolumes() []corev1.Volume {
 		})
 	}
 	return volumes
+}
+
+// WorkloadBuilderRequirements workload buidler requirements
+// all workload builder requirements must implement this interface
+// it include resource builder and workload resource requirements interface
+// ResourceBuilder: core.ResourceBuilder, should build the single resource, such as StatefulSetBuilder, DeploymentBuilder
+// WorkloadResourceRequirements: core.WorkloadResourceRequirements, should implement the workload resource requirements,
+// such as command, envs, logging override, and get instance condition, usually we can create it by NewGenericWorkloadRequirements
+type WorkloadBuilderRequirements interface {
+	core.ResourceBuilder
+	core.WorkloadResourceRequirements
+}
+
+type GenericStatefulSetReconciler[T client.Object, G any] struct {
+	core.WorkloadStyleReconciler[T, G]
+	requirements WorkloadBuilderRequirements
+}
+
+func (g *GenericStatefulSetReconciler[T, G]) Build(ctx context.Context) (client.Object, error) {
+	return g.requirements.Build(ctx)
+}
+
+type GenericDeploymentReconciler[T client.Object, G any] struct {
+	core.WorkloadStyleReconciler[T, G]
+	requirements WorkloadBuilderRequirements
+}
+
+func (g *GenericDeploymentReconciler[T, G]) Build(ctx context.Context) (client.Object, error) {
+	return g.requirements.Build(ctx)
+}
+
+// WorkloadResourceRequirements workload reconciler requirements
+// do works below:
+// 1. command and env override can support
+// 2. logging override can support
+// 3. get instance condition
+
+var _ core.WorkloadResourceRequirements = &GenericWorkloadOverrideHandler{}
+
+type GenericWorkloadOverrideHandler struct {
+	MainContainerName string
+	Containers        *[]corev1.Container
+	CmdOverride       []string
+	EnvOverrides      map[string]string
+	InstanceCondition *[]metav1.Condition
+}
+
+func (s *GenericWorkloadOverrideHandler) CommandOverride(obj client.Object) {
+	if s.CmdOverride != nil {
+		containers := *s.Containers
+		for i := range containers {
+			if containers[i].Name == string(core.Master) {
+				containers[i].Command = s.CmdOverride
+				break
+			}
+		}
+	}
+}
+
+func (s *GenericWorkloadOverrideHandler) EnvOverride(obj client.Object) {
+	if len(s.EnvOverrides) > 0 {
+		containers := *s.Containers
+		for i := range containers {
+			if containers[i].Name == string(core.Master) {
+				envVars := containers[i].Env
+				OverrideEnvVars(&envVars, s.EnvOverrides)
+				break
+			}
+		}
+	}
+}
+
+func (s *GenericWorkloadOverrideHandler) LogOverride(_ client.Object) {
+	// do nothing, see name node
+}
+
+func (s *GenericWorkloadOverrideHandler) GetConditions() *[]metav1.Condition {
+	return s.InstanceCondition
+}
+
+func OverrideEnvVars(origin *[]corev1.EnvVar, override map[string]string) {
+	var originVars = make(map[string]int)
+	for i, env := range *origin {
+		originVars[env.Name] = i
+	}
+
+	for k, v := range override {
+		// if env Name is in override, then override it
+		if idx, ok := originVars[k]; ok {
+			(*origin)[idx].Value = v
+		} else {
+			// if override's key is new, then append it
+			*origin = append(*origin, corev1.EnvVar{
+				Name:  k,
+				Value: v,
+			})
+		}
+	}
 }

@@ -23,7 +23,7 @@ type RoleReconciler interface {
 	ReconcileRole(ctx context.Context) (ctrl.Result, error)
 }
 
-type RoleHelper interface {
+type RoleReconcilerRequirements interface {
 	MergeConfig() map[string]any
 	RegisterResources(ctx context.Context) map[string][]ResourceReconciler
 }
@@ -74,28 +74,28 @@ type BaseRoleReconciler[T client.Object] struct {
 	Client             client.Client
 	RoleLabels         map[string]string
 	InstanceAttributes InstanceAttributes
-	RoleHelper
+	RoleReconcilerRequirements
 	Role              Role
 	RolePdbReconciler ResourceReconciler
 }
 
 func NewBaseRoleReconciler[T client.Object](scheme *runtime.Scheme, instance T, client client.Client, role Role,
-	roleLabels map[string]string, instanceAttributes InstanceAttributes, helper RoleHelper,
+	roleLabels map[string]string, instanceAttributes InstanceAttributes, helper RoleReconcilerRequirements,
 	rolePdbReconciler ResourceReconciler) *BaseRoleReconciler[T] {
 	return &BaseRoleReconciler[T]{
-		Scheme:             scheme,
-		Instance:           instance,
-		Client:             client,
-		InstanceAttributes: instanceAttributes,
-		Role:               role,
-		RoleLabels:         roleLabels,
-		RoleHelper:         helper,
-		RolePdbReconciler:  rolePdbReconciler,
+		Scheme:                     scheme,
+		Instance:                   instance,
+		Client:                     client,
+		InstanceAttributes:         instanceAttributes,
+		Role:                       role,
+		RoleLabels:                 roleLabels,
+		RoleReconcilerRequirements: helper,
+		RolePdbReconciler:          rolePdbReconciler,
 	}
 }
 
 func (r *BaseRoleReconciler[T]) MergeConfig() {
-	mergedCfgs := r.RoleHelper.MergeConfig()
+	mergedCfgs := r.RoleReconcilerRequirements.MergeConfig()
 	for groupName, cfg := range mergedCfgs {
 		StoreSingleGroupConfig(r.Instance.GetName(), r.Role, groupName, cfg)
 	}
@@ -115,7 +115,7 @@ func (r *BaseRoleReconciler[T]) ReconcileRole(ctx context.Context) (ctrl.Result,
 
 	// reconciler groups
 	for _, name := range roleCfg.RoleGroups {
-		resourceReconcilers := r.RoleHelper.RegisterResources(ctx)
+		resourceReconcilers := r.RoleReconcilerRequirements.RegisterResources(ctx)
 		groupResources := resourceReconcilers[name]
 		groupReconciler := NewBaseRoleGroupReconciler(r.Scheme, r.Instance, r.Client, r.Role, name, groupResources)
 		res, err := groupReconciler.ReconcileGroup(ctx)
