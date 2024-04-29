@@ -18,7 +18,7 @@ func NewWorkerRole(
 	dolphinInstance := &common.DolphinSchedulerClusterInstance{Instance: instance}
 	LabelHelper := core.RoleLabelHelper{}
 	roleLabels := LabelHelper.RoleLabels(instance.GetName(), core.Worker)
-	workerHelper := NewRoleWorkerHelper(scheme, instance, roleLabels, client)
+	workerHelper := NewRoleWorkerRequirements(scheme, instance, roleLabels, client)
 	var pdb core.ResourceReconciler
 	if instance.Spec.Alerter.PodDisruptionBudget != nil {
 		pdb = resource.NewReconcilePDB(client, scheme, instance, roleLabels, string(core.Worker), common.PdbCfg(instance.Spec.Alerter.PodDisruptionBudget))
@@ -26,9 +26,9 @@ func NewWorkerRole(
 	return core.NewBaseRoleReconciler(scheme, instance, client, core.Worker, roleLabels, dolphinInstance, workerHelper, pdb)
 }
 
-func NewRoleWorkerHelper(scheme *runtime.Scheme, instance *dolphinv1alpha1.DolphinschedulerCluster,
-	roleLabels map[string]string, client client.Client) *RoleWorkerHelper {
-	return &RoleWorkerHelper{
+func NewRoleWorkerRequirements(scheme *runtime.Scheme, instance *dolphinv1alpha1.DolphinschedulerCluster,
+	roleLabels map[string]string, client client.Client) *RoleWorkerRequirements {
+	return &RoleWorkerRequirements{
 		scheme:          scheme,
 		instance:        instance,
 		client:          client,
@@ -39,9 +39,9 @@ func NewRoleWorkerHelper(scheme *runtime.Scheme, instance *dolphinv1alpha1.Dolph
 	}
 }
 
-var _ core.RoleHelper = &RoleWorkerHelper{}
+var _ core.RoleReconcilerRequirements = &RoleWorkerRequirements{}
 
-type RoleWorkerHelper struct {
+type RoleWorkerRequirements struct {
 	scheme          *runtime.Scheme
 	instance        *dolphinv1alpha1.DolphinschedulerCluster
 	client          client.Client
@@ -51,7 +51,7 @@ type RoleWorkerHelper struct {
 	workerGroupSpec map[string]*dolphinv1alpha1.WorkerRoleGroupSpec
 }
 
-func (r *RoleWorkerHelper) MergeConfig() map[string]any {
+func (r *RoleWorkerRequirements) MergeConfig() map[string]any {
 	var mergedCfg = make(map[string]any)
 	for groupName, cfg := range r.workerGroupSpec {
 		copiedRoleGroup := cfg.DeepCopy()
@@ -69,14 +69,14 @@ func (r *RoleWorkerHelper) MergeConfig() map[string]any {
 	return mergedCfg
 }
 
-func (r *RoleWorkerHelper) RegisterResources(ctx context.Context) map[string][]core.ResourceReconciler {
+func (r *RoleWorkerRequirements) RegisterResources(ctx context.Context) map[string][]core.ResourceReconciler {
 	var reconcilers = map[string][]core.ResourceReconciler{}
 	helper := core.RoleLabelHelper{}
 	for _, groupName := range r.groups {
 		value := core.GetRoleGroup(r.instance.Name, core.Worker, groupName)
 		mergedCfg := value.(*dolphinv1alpha1.WorkerRoleGroupSpec)
 		labels := helper.GroupLabels(r.roleLabels, groupName, mergedCfg.Config.NodeSelector)
-		statefulset := NewStatefulSet(r.scheme, r.instance, r.client, groupName, labels, mergedCfg, mergedCfg.Replicas)
+		statefulset := NewStatefulSet(ctx, r.scheme, r.instance, r.client, groupName, labels, mergedCfg, mergedCfg.Replicas)
 		svc := NewWorkerServiceHeadless(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
 		groupReconcilers := []core.ResourceReconciler{statefulset, svc}
 		if mergedCfg.Config.PodDisruptionBudget != nil {

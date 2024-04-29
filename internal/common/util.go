@@ -14,26 +14,6 @@ import (
 	"strings"
 )
 
-func OverrideEnvVars(origin *[]corev1.EnvVar, override map[string]string) {
-	var originVars = make(map[string]int)
-	for i, env := range *origin {
-		originVars[env.Name] = i
-	}
-
-	for k, v := range override {
-		// if env Name is in override, then override it
-		if idx, ok := originVars[k]; ok {
-			(*origin)[idx].Value = v
-		} else {
-			// if override's key is new, then append it
-			*origin = append(*origin, corev1.EnvVar{
-				Name:  k,
-				Value: v,
-			})
-		}
-	}
-}
-
 func ConfigConfigMapName(instanceName string, groupName string) string {
 	return util.NewResourceNameGenerator(instanceName, "", groupName).GenerateResourceName("config")
 }

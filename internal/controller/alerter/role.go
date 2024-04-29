@@ -18,7 +18,7 @@ func NewAlerterRole(
 	dolphinInstance := &common.DolphinSchedulerClusterInstance{Instance: instance}
 	LabelHelper := core.RoleLabelHelper{}
 	roleLabels := LabelHelper.RoleLabels(instance.GetName(), core.Alerter)
-	alerterHelper := NewRoleAlerterHelper(scheme, instance, roleLabels, client)
+	alerterHelper := NewRoleAlerterRequirements(scheme, instance, roleLabels, client)
 
 	var pdb core.ResourceReconciler
 	if instance.Spec.Alerter.PodDisruptionBudget != nil {
@@ -27,9 +27,9 @@ func NewAlerterRole(
 	return core.NewBaseRoleReconciler(scheme, instance, client, core.Alerter, roleLabels, dolphinInstance, alerterHelper, pdb)
 }
 
-func NewRoleAlerterHelper(scheme *runtime.Scheme, instance *dolphinv1alpha1.DolphinschedulerCluster,
-	roleLabels map[string]string, client client.Client) *RoleAlerterHelper {
-	return &RoleAlerterHelper{
+func NewRoleAlerterRequirements(scheme *runtime.Scheme, instance *dolphinv1alpha1.DolphinschedulerCluster,
+	roleLabels map[string]string, client client.Client) *RoleAlerterRequirements {
+	return &RoleAlerterRequirements{
 		scheme:           scheme,
 		instance:         instance,
 		client:           client,
@@ -40,9 +40,9 @@ func NewRoleAlerterHelper(scheme *runtime.Scheme, instance *dolphinv1alpha1.Dolp
 	}
 }
 
-var _ core.RoleHelper = &RoleAlerterHelper{}
+var _ core.RoleReconcilerRequirements = &RoleAlerterRequirements{}
 
-type RoleAlerterHelper struct {
+type RoleAlerterRequirements struct {
 	scheme           *runtime.Scheme
 	instance         *dolphinv1alpha1.DolphinschedulerCluster
 	client           client.Client
@@ -52,7 +52,7 @@ type RoleAlerterHelper struct {
 	alerterGroupSpec map[string]*dolphinv1alpha1.AlerterRoleGroupSpec
 }
 
-func (r *RoleAlerterHelper) MergeConfig() map[string]any {
+func (r *RoleAlerterRequirements) MergeConfig() map[string]any {
 	var mergedCfg = make(map[string]any)
 	for groupName, cfg := range r.alerterGroupSpec {
 		copiedRoleGroup := cfg.DeepCopy()
@@ -70,14 +70,14 @@ func (r *RoleAlerterHelper) MergeConfig() map[string]any {
 	return mergedCfg
 }
 
-func (r *RoleAlerterHelper) RegisterResources(ctx context.Context) map[string][]core.ResourceReconciler {
+func (r *RoleAlerterRequirements) RegisterResources(ctx context.Context) map[string][]core.ResourceReconciler {
 	var reconcilers = map[string][]core.ResourceReconciler{}
 	helper := core.RoleLabelHelper{}
 	for _, groupName := range r.groups {
 		value := core.GetRoleGroup(r.instance.Name, core.Alerter, groupName)
 		mergedCfg := value.(*dolphinv1alpha1.AlerterRoleGroupSpec)
 		labels := helper.GroupLabels(r.roleLabels, groupName, mergedCfg.Config.NodeSelector)
-		statefulset := NewDeployment(r.scheme, r.instance, r.client, groupName, labels, mergedCfg, mergedCfg.Replicas)
+		statefulset := NewDeployment(ctx, r.scheme, r.instance, r.client, groupName, labels, mergedCfg, mergedCfg.Replicas)
 		svc := NewAlerterService(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
 		groupReconcilers := []core.ResourceReconciler{statefulset, svc}
 		if mergedCfg.Config.PodDisruptionBudget != nil {

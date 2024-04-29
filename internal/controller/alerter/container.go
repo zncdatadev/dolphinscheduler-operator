@@ -16,12 +16,8 @@ func NewAlerterContainerBuilder(
 	resourceSpec *dolphinv1alpha1.ResourcesSpec,
 	envConfigName string,
 	configConfigMapName string,
-	dbSpec *dolphinv1alpha1.DatabaseSpec,
 	dbParams *resource.DatabaseParams,
 ) *ContainerBuilder {
-	if dbSpec == nil {
-		panic("dbSpec is nil")
-	}
 	return &ContainerBuilder{
 		ContainerBuilder:        *resource.NewContainerBuilder(image, imagePullPolicy),
 		zookeeperDiscoveryZNode: zookeeperDiscoveryZNode,

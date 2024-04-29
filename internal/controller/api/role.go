@@ -18,7 +18,7 @@ func NewApiRole(
 	dolphinInstance := &common.DolphinSchedulerClusterInstance{Instance: instance}
 	LabelHelper := core.RoleLabelHelper{}
 	roleLabels := LabelHelper.RoleLabels(instance.GetName(), core.Api)
-	apiHelper := NewRoleApiHelper(scheme, instance, roleLabels, client)
+	apiHelper := NewRoleApiRequirements(scheme, instance, roleLabels, client)
 	var pdb core.ResourceReconciler
 	if instance.Spec.Alerter.PodDisruptionBudget != nil {
 		pdb = resource.NewReconcilePDB(client, scheme, instance, roleLabels, string(core.Api), common.PdbCfg(instance.Spec.Alerter.PodDisruptionBudget))
@@ -26,9 +26,9 @@ func NewApiRole(
 	return core.NewBaseRoleReconciler(scheme, instance, client, core.Api, roleLabels, dolphinInstance, apiHelper, pdb)
 }
 
-func NewRoleApiHelper(scheme *runtime.Scheme, instance *dolphinv1alpha1.DolphinschedulerCluster,
-	roleLabels map[string]string, client client.Client) *RoleApiHelper {
-	return &RoleApiHelper{
+func NewRoleApiRequirements(scheme *runtime.Scheme, instance *dolphinv1alpha1.DolphinschedulerCluster,
+	roleLabels map[string]string, client client.Client) *RoleApiRequirements {
+	return &RoleApiRequirements{
 		scheme:       scheme,
 		instance:     instance,
 		client:       client,
@@ -39,9 +39,9 @@ func NewRoleApiHelper(scheme *runtime.Scheme, instance *dolphinv1alpha1.Dolphins
 	}
 }
 
-var _ core.RoleHelper = &RoleApiHelper{}
+var _ core.RoleReconcilerRequirements = &RoleApiRequirements{}
 
-type RoleApiHelper struct {
+type RoleApiRequirements struct {
 	scheme       *runtime.Scheme
 	instance     *dolphinv1alpha1.DolphinschedulerCluster
 	client       client.Client
@@ -51,7 +51,7 @@ type RoleApiHelper struct {
 	apiGroupSpec map[string]*dolphinv1alpha1.ApiRoleGroupSpec
 }
 
-func (r *RoleApiHelper) MergeConfig() map[string]any {
+func (r *RoleApiRequirements) MergeConfig() map[string]any {
 	var mergedCfg = make(map[string]any)
 	for groupName, cfg := range r.apiGroupSpec {
 		copiedRoleGroup := cfg.DeepCopy()
@@ -69,14 +69,14 @@ func (r *RoleApiHelper) MergeConfig() map[string]any {
 	return mergedCfg
 }
 
-func (r *RoleApiHelper) RegisterResources(ctx context.Context) map[string][]core.ResourceReconciler {
+func (r *RoleApiRequirements) RegisterResources(ctx context.Context) map[string][]core.ResourceReconciler {
 	var reconcilers = map[string][]core.ResourceReconciler{}
 	helper := core.RoleLabelHelper{}
 	for _, groupName := range r.groups {
 		value := core.GetRoleGroup(r.instance.Name, core.Api, groupName)
 		mergedCfg := value.(*dolphinv1alpha1.ApiRoleGroupSpec)
 		labels := helper.GroupLabels(r.roleLabels, groupName, mergedCfg.Config.NodeSelector)
-		statefulset := NewDeployment(r.scheme, r.instance, r.client, groupName, labels, mergedCfg, mergedCfg.Replicas)
+		statefulset := NewDeployment(ctx, r.scheme, r.instance, r.client, groupName, labels, mergedCfg, mergedCfg.Replicas)
 		svc := NewApiService(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
 		ingress := NewIngress(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
 		groupReconcilers := []core.ResourceReconciler{statefulset, svc, ingress}

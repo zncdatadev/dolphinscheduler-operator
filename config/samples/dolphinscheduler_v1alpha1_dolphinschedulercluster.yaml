@@ -22,7 +22,7 @@ spec:
       pullPolicy: IfNotPresent
     roleGroups:
       default:
-        replicas: 1
+        replicas: 3
         config:
           resources:
             cpu:
@@ -35,7 +35,7 @@ spec:
       pullPolicy: IfNotPresent
     roleGroups:
       default:
-        replicas: 1
+        replicas: 3
         config:
           resources:
             cpu:
