@@ -6,6 +6,7 @@ import (
 	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -56,7 +57,7 @@ func (c *ConfigMapReconciler) createEnvConfigMapReconciler() core.ResourceBuilde
 		c.MergedCfg,
 		common.EnvsConfigMapName(c.Instance.GetName(), c.GroupName),
 		generators,
-		nil, // todo
+		&EnvConfigmapOverride{EnvOverrideSpec: c.MergedCfg.ConfigOverrides.Envs},
 	)
 	return cm
 }
@@ -75,7 +76,33 @@ func (c *ConfigMapReconciler) createConfigConfigMapReconciler() core.ResourceBui
 		c.MergedCfg,
 		common.ConfigConfigMapName(c.Instance.GetName(), c.GroupName),
 		generators,
-		nil, // todo
+		&CommonPropertiesConfigmapOverride{CommonPropertiesOverrideSpec: c.MergedCfg.ConfigOverrides.CommonProperties},
 	)
 	return cm
+}
+
+var _ core.ConfigurationOverride = &EnvConfigmapOverride{}
+var _ core.ConfigurationOverride = &CommonPropertiesConfigmapOverride{}
+
+// EnvConfigmapOverride env configmap
+type EnvConfigmapOverride struct {
+	EnvOverrideSpec map[string]string
+}
+
+func (e *EnvConfigmapOverride) ConfigurationOverride(obj client.Object) {
+	cm := obj.(*corev1.ConfigMap)
+	origin := cm.Data
+	resource.OverrideConfigmapEnvs(&origin, e.EnvOverrideSpec)
+}
+
+// CommonPropertiesConfigmapOverride common properties
+type CommonPropertiesConfigmapOverride struct {
+	CommonPropertiesOverrideSpec map[string]string
+}
+
+func (c *CommonPropertiesConfigmapOverride) ConfigurationOverride(obj client.Object) {
+	cm := obj.(*corev1.ConfigMap)
+	overridden := resource.OverrideConfigFileContent(cm.Data[dolphinv1alpha1.DolphinCommonPropertiesName],
+		c.CommonPropertiesOverrideSpec, resource.Properties)
+	cm.Data[dolphinv1alpha1.DolphinCommonPropertiesName] = overridden
 }

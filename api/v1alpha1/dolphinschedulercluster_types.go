@@ -190,6 +190,8 @@ type ContainerLoggingSpec struct {
 }
 
 type ConfigOverridesSpec struct {
+	CommonProperties map[string]string `json:"common.properties,omitempty"`
+	Envs             map[string]string `json:"envs,omitempty"`
 }
 
 type ConfigSpec struct {
