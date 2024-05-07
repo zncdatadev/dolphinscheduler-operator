@@ -22,7 +22,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const DolphinCommonPropertiesName = "common.properties"
+const (
+	DolphinCommonPropertiesName = "common.properties"
+	DolphinConfigPath           = "/opt/dolphinscheduler/conf"
+	LogbackPropertiesFileName   = "logback-spring.xml"
+)
 
 const DbInitImage = "apache/dolphinscheduler-tools:3.2.1"
 
@@ -190,6 +194,8 @@ type ContainerLoggingSpec struct {
 }
 
 type ConfigOverridesSpec struct {
+	CommonProperties map[string]string `json:"common.properties,omitempty"`
+	Envs             map[string]string `json:"envs,omitempty"`
 }
 
 type ConfigSpec struct {

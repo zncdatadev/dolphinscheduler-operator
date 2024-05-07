@@ -157,9 +157,9 @@ const (
 // 1. resourceBuilerFunc: a function to create a new resource
 type GeneralConfigMapReconciler[T client.Object, G any] struct {
 	core.GeneralResourceStyleReconciler[T, G]
-	configMapName             string
-	configGenerator           []any
-	configurationOverrideFunc func() error
+	configMapName         string
+	configGenerator       []any
+	configurationOverride core.ConfigurationOverride
 }
 
 // NewGeneralConfigMap new a GeneralConfigMapReconciler
@@ -172,9 +172,7 @@ func NewGeneralConfigMap[T client.Object, G any](
 	mergedCfg G,
 	configMapName string,
 	configGenerator []any,
-	configurationOverrideFunc func() error,
-
-) *GeneralConfigMapReconciler[T, G] {
+	configurationOverride core.ConfigurationOverride) *GeneralConfigMapReconciler[T, G] {
 	return &GeneralConfigMapReconciler[T, G]{
 		GeneralResourceStyleReconciler: *core.NewGeneraResourceStyleReconciler[T, G](
 			scheme,
@@ -183,9 +181,9 @@ func NewGeneralConfigMap[T client.Object, G any](
 			groupName,
 			mergedLabels,
 			mergedCfg),
-		configGenerator:           configGenerator,
-		configMapName:             configMapName,
-		configurationOverrideFunc: configurationOverrideFunc,
+		configGenerator:       configGenerator,
+		configMapName:         configMapName,
+		configurationOverride: configurationOverride,
 	}
 }
 
@@ -197,10 +195,14 @@ func (c *GeneralConfigMapReconciler[T, G]) Build(_ context.Context) (client.Obje
 
 // ConfigurationOverride implement ConfigurationOverride interface
 func (c *GeneralConfigMapReconciler[T, G]) ConfigurationOverride(resource client.Object) {
-	if c.configurationOverrideFunc != nil {
-		err := c.configurationOverrideFunc()
-		if err != nil {
-			return
-		}
+	if c.configurationOverride != nil {
+		c.configurationOverride.ConfigurationOverride(resource)
+	}
+}
+
+func OverrideConfigmapEnvs(origin *map[string]string, override map[string]string) {
+	var originEnvs = *origin
+	for k, v := range override {
+		originEnvs[k] = v
 	}
 }

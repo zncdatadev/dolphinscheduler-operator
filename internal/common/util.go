@@ -14,6 +14,11 @@ import (
 	"strings"
 )
 
+const Master core.Role = "master"
+const Worker core.Role = "worker"
+const Alerter core.Role = "alerter"
+const Api core.Role = "api"
+
 func ConfigConfigMapName(instanceName string, groupName string) string {
 	return util.NewResourceNameGenerator(instanceName, "", groupName).GenerateResourceName("config")
 }
@@ -63,42 +68,29 @@ func CreateKvContentByReplicas(replicas int32, keyTemplate string, valueTemplate
 	return res
 }
 
-func CreateLog4jBuilder(containerLogging *dolphinv1alpha1.LoggingConfigSpec, consoleAppenderName,
-	fileAppenderName string, fileLogLocation string) *resource.Log4jLoggingDataBuilder {
-	log4jBuilder := &resource.Log4jLoggingDataBuilder{}
-	if loggers := containerLogging.Loggers; loggers != nil {
-		var builderLoggers []resource.LogBuilderLoggers
-		for logger, level := range loggers {
-			builderLoggers = append(builderLoggers, resource.LogBuilderLoggers{
-				Logger: logger,
-				Level:  level.Level,
-			})
-		}
-		log4jBuilder.Loggers = builderLoggers
-	}
-	if console := containerLogging.Console; console != nil {
-		log4jBuilder.Console = &resource.LogBuilderAppender{
-			AppenderName: consoleAppenderName,
-			Level:        console.Level,
-		}
-	}
-	if file := containerLogging.File; file != nil {
-		log4jBuilder.File = &resource.LogBuilderAppender{
-			AppenderName:       fileAppenderName,
-			Level:              file.Level,
-			DefaultLogLocation: fileLogLocation,
-		}
-	}
-
-	return log4jBuilder
-}
-
 func K8sEnvRef(envName string) string {
 	return fmt.Sprintf("$(%s)", envName)
 }
 
 func LinuxEnvRef(envName string) string {
 	return fmt.Sprintf("$%s", envName)
+}
+
+func TransformApiLogger(logging *dolphinv1alpha1.LoggingConfigSpec) *resource.TextTemplateLoggingDataBuilder {
+	var customLoggers []resource.LoggerLevel
+	for logger, lvl := range logging.Loggers {
+		customLoggers = append(customLoggers, resource.LoggerLevel{
+			Logger: logger,
+			Level:  lvl.Level,
+		})
+	}
+	return &resource.TextTemplateLoggingDataBuilder{
+		Loggers: customLoggers,
+		Console: &resource.LoggingAppender{
+			Level: logging.Console.Level,
+		},
+		File: &resource.LoggingAppender{Level: logging.File.Level},
+	}
 }
 
 func PdbCfg(pdbSpec *dolphinv1alpha1.PodDisruptionBudgetSpec) *core.PdbConfig {
@@ -133,11 +125,6 @@ func ExtractDataBaseReference(dbSpec *dolphinv1alpha1.DatabaseSpec, ctx context.
 }
 
 func MakeDataBaseEnvs(params *resource.DatabaseParams) []corev1.EnvVar {
-	//db, params := ExtractDataBaseReference(dbSpec, ctx, client, namespace)
-	//uri, err := db.GetURI()
-	//if err != nil {
-	//	panic(err)
-	//}
 	uri := resource.ToUri(params)
 	return []corev1.EnvVar{
 		{
@@ -171,22 +158,22 @@ type DolphinSchedulerClusterInstance struct {
 
 func (k *DolphinSchedulerClusterInstance) GetRoleConfig(role core.Role) *core.RoleConfiguration {
 	switch role {
-	case core.Master:
+	case Master:
 		masterSpec := k.Instance.Spec.Master
 		roleGetter := &DolphinSchedulerRoleGetter{masterSpec.Config}
 		groups := maps.Keys(masterSpec.RoleGroups)
 		return k.transformRoleSpec(roleGetter, groups, masterSpec.PodDisruptionBudget)
-	case core.Worker:
+	case Worker:
 		workerSpec := k.Instance.Spec.Worker
 		roleGetter := &DolphinSchedulerRoleGetter{workerSpec.Config}
 		groups := maps.Keys(workerSpec.RoleGroups)
 		return k.transformRoleSpec(roleGetter, groups, workerSpec.PodDisruptionBudget)
-	case core.Alerter:
+	case Alerter:
 		alerterSpec := k.Instance.Spec.Alerter
 		roleGetter := &DolphinSchedulerRoleGetter{alerterSpec.Config}
 		groups := maps.Keys(alerterSpec.RoleGroups)
 		return k.transformRoleSpec(roleGetter, groups, alerterSpec.PodDisruptionBudget)
-	case core.Api:
+	case Api:
 		apiSpec := k.Instance.Spec.Api
 		roleGetter := &DolphinSchedulerRoleGetter{apiSpec.Config}
 		groups := maps.Keys(apiSpec.RoleGroups)

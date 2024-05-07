@@ -13,11 +13,6 @@ import (
 
 type Role string
 
-const Master Role = "master"
-const Worker Role = "worker"
-const Alerter Role = "alerter"
-const Api Role = "api"
-
 type RoleReconciler interface {
 	MergeConfig()
 	ReconcileRole(ctx context.Context) (ctrl.Result, error)
@@ -166,6 +161,10 @@ func ReconcilersDoReconcile(ctx context.Context, reconcilers []ResourceReconcile
 
 func SingleResourceDoReconcile(ctx context.Context, r ResourceReconciler) (ctrl.Result, error) {
 	if single, ok := r.(ResourceBuilder); ok {
+		if reflect.ValueOf(r).IsNil() {
+			return ctrl.Result{}, nil
+		}
+
 		res, err := r.ReconcileResource(ctx, NewSingleResourceBuilder(single))
 		if err != nil {
 			return ctrl.Result{}, err

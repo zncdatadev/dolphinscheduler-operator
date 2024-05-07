@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"reflect"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -446,13 +447,14 @@ type GenericWorkloadOverrideHandler struct {
 	CmdOverride       []string
 	EnvOverrides      map[string]string
 	InstanceCondition *[]metav1.Condition
+	*LoggingOverrideHandler
 }
 
-func (s *GenericWorkloadOverrideHandler) CommandOverride(obj client.Object) {
+func (s *GenericWorkloadOverrideHandler) CommandOverride(_ client.Object) {
 	if s.CmdOverride != nil {
 		containers := *s.Containers
 		for i := range containers {
-			if containers[i].Name == string(core.Master) {
+			if containers[i].Name == s.MainContainerName {
 				containers[i].Command = s.CmdOverride
 				break
 			}
@@ -460,11 +462,11 @@ func (s *GenericWorkloadOverrideHandler) CommandOverride(obj client.Object) {
 	}
 }
 
-func (s *GenericWorkloadOverrideHandler) EnvOverride(obj client.Object) {
+func (s *GenericWorkloadOverrideHandler) EnvOverride(_ client.Object) {
 	if len(s.EnvOverrides) > 0 {
 		containers := *s.Containers
 		for i := range containers {
-			if containers[i].Name == string(core.Master) {
+			if containers[i].Name == s.MainContainerName {
 				envVars := containers[i].Env
 				OverrideEnvVars(&envVars, s.EnvOverrides)
 				break
@@ -473,8 +475,16 @@ func (s *GenericWorkloadOverrideHandler) EnvOverride(obj client.Object) {
 	}
 }
 
-func (s *GenericWorkloadOverrideHandler) LogOverride(_ client.Object) {
-	// do nothing, see name node
+func (s *GenericWorkloadOverrideHandler) LogOverride(obj client.Object) {
+	if s.LoggingOverrideHandler != nil {
+		containers := *s.Containers
+		for i := range containers {
+			if containers[i].Name == s.MainContainerName {
+				s.LoggingOverrideHandler.LogOverride(obj, &containers[i])
+				break
+			}
+		}
+	}
 }
 
 func (s *GenericWorkloadOverrideHandler) GetConditions() *[]metav1.Condition {
@@ -499,4 +509,72 @@ func OverrideEnvVars(origin *[]corev1.EnvVar, override map[string]string) {
 			})
 		}
 	}
+}
+
+// LoggingOverrideHandler logging override handler
+// append log volumes to exist workload resource,
+// append log volume mounts to exist main container in exist workload resource
+type LoggingOverrideHandler struct {
+	LoggingVolumeName string
+	LoggingConfigName string
+	LoggingPath       string
+	LoggingFile       string
+
+	WorkloadVolumes      *[]corev1.Volume
+	WorkloadVolumeMounts *[]corev1.VolumeMount
+	// other fields
+}
+
+func NewLoggingOverrideHandler(logVolumeName string, logConfigName string, logPath string,
+	logFile string) *LoggingOverrideHandler {
+	return &LoggingOverrideHandler{
+		LoggingVolumeName: logVolumeName,
+		LoggingConfigName: logConfigName,
+		LoggingPath:       logPath,
+		LoggingFile:       logFile,
+	}
+}
+
+func (s *LoggingOverrideHandler) LogOverride(obj client.Object, mainContainer *corev1.Container) {
+	// main container volume mounts
+	s.WorkloadVolumeMounts = &mainContainer.VolumeMounts
+
+	// workload volumes
+	switch obj := obj.(type) {
+	case *appsv1.StatefulSet:
+		s.WorkloadVolumes = &obj.Spec.Template.Spec.Volumes
+	case *appsv1.Deployment:
+		s.WorkloadVolumes = &obj.Spec.Template.Spec.Volumes
+	default:
+		panic("obj is not StatefulSet or Deployment, current is " + reflect.TypeOf(obj).String())
+	}
+
+	// update volume and volume mounts
+	s.AppendVolumes()
+	s.AppendVolumeMounts()
+}
+
+// AppendVolumes append log volume to exist volumes
+func (s *LoggingOverrideHandler) AppendVolumes() *[]corev1.Volume {
+	*s.WorkloadVolumes = append(*s.WorkloadVolumes, corev1.Volume{
+		Name: s.LoggingVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: s.LoggingConfigName,
+				},
+			},
+		},
+	})
+	return s.WorkloadVolumes
+}
+
+// AppendVolumeMounts append log volume mount to exist volume mounts
+func (s *LoggingOverrideHandler) AppendVolumeMounts() *[]corev1.VolumeMount {
+	*s.WorkloadVolumeMounts = append(*s.WorkloadVolumeMounts, corev1.VolumeMount{
+		Name:      s.LoggingVolumeName,
+		MountPath: s.LoggingPath,
+		SubPath:   s.LoggingFile,
+	})
+	return s.WorkloadVolumeMounts
 }

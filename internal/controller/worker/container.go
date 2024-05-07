@@ -209,4 +209,4 @@ func (c *ContainerBuilder) ContainerName() string {
 	return string(ContainerWorker)
 }
 
-const ContainerWorker resource.ContainerComponent = resource.ContainerComponent(core.Worker)
+const ContainerWorker resource.ContainerComponent = resource.ContainerComponent(common.Worker)

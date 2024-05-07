@@ -22,7 +22,7 @@ spec:
       pullPolicy: IfNotPresent
     roleGroups:
       default:
-        replicas: 3
+        replicas: 1
         config:
           resources:
             cpu:
@@ -35,7 +35,7 @@ spec:
       pullPolicy: IfNotPresent
     roleGroups:
       default:
-        replicas: 3
+        replicas: 1
         config:
           resources:
             cpu:
@@ -43,6 +43,7 @@ spec:
               max: 2
             memory:
               limit: "3Gi"
+
   api:
     image:
       pullPolicy: IfNotPresent
@@ -56,6 +57,17 @@ spec:
               max: 2
             memory:
               limit: "3Gi"
+          logging:
+            logging:
+              loggers:
+                logger1:
+                  level: ERROR
+                logger2:
+                  level: DEBUG
+              console:
+                level: WARN
+              file:
+                level: WARN
   alerter:
     image:
       pullPolicy: IfNotPresent
@@ -69,3 +81,14 @@ spec:
               max: 2
             memory:
               limit: "3Gi"
+          logging:
+            logging:
+              loggers:
+                logger1:
+                  level: ERROR
+                logger2:
+                  level: DEBUG
+              console:
+                level: WARN
+              file:
+                level: WARN

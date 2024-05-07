@@ -162,4 +162,4 @@ func (c *ContainerBuilder) ContainerName() string {
 	return string(ContainerAlerter)
 }
 
-const ContainerAlerter resource.ContainerComponent = resource.ContainerComponent(core.Alerter)
+const ContainerAlerter resource.ContainerComponent = resource.ContainerComponent(common.Alerter)

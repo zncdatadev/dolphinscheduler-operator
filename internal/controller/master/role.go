@@ -17,14 +17,14 @@ func NewMasterRole(
 	client client.Client) *core.BaseRoleReconciler[*dolphinv1alpha1.DolphinschedulerCluster] {
 	dolphinInstance := &common.DolphinSchedulerClusterInstance{Instance: instance}
 	LabelHelper := core.RoleLabelHelper{}
-	roleLabels := LabelHelper.RoleLabels(instance.GetName(), core.Master)
+	roleLabels := LabelHelper.RoleLabels(instance.GetName(), getRole())
 	masterHelper := NewRoleMasterRequirements(scheme, instance, roleLabels, client)
 
 	var pdb core.ResourceReconciler
 	if instance.Spec.Alerter.PodDisruptionBudget != nil {
-		pdb = resource.NewReconcilePDB(client, scheme, instance, roleLabels, string(core.Master), common.PdbCfg(instance.Spec.Alerter.PodDisruptionBudget))
+		pdb = resource.NewReconcilePDB(client, scheme, instance, roleLabels, string(getRole()), common.PdbCfg(instance.Spec.Alerter.PodDisruptionBudget))
 	}
-	return core.NewBaseRoleReconciler(scheme, instance, client, core.Master, roleLabels, dolphinInstance, masterHelper, pdb)
+	return core.NewBaseRoleReconciler(scheme, instance, client, getRole(), roleLabels, dolphinInstance, masterHelper, pdb)
 }
 
 func NewRoleMasterRequirements(scheme *runtime.Scheme, instance *dolphinv1alpha1.DolphinschedulerCluster,
@@ -74,13 +74,14 @@ func (r *RoleMasterRequirements) RegisterResources(ctx context.Context) map[stri
 	var reconcilers = map[string][]core.ResourceReconciler{}
 	helper := core.RoleLabelHelper{}
 	for _, groupName := range r.groups {
-		value := core.GetRoleGroup(r.instance.Name, core.Master, groupName)
+		value := core.GetRoleGroup(r.instance.Name, getRole(), groupName)
 		mergedCfg := value.(*dolphinv1alpha1.MasterRoleGroupSpec)
 		labels := helper.GroupLabels(r.roleLabels, groupName, mergedCfg.Config.NodeSelector)
 		cm := NewMasterConfigMap(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
 		statefulset := NewStatefulSet(ctx, r.scheme, r.instance, r.client, groupName, labels, mergedCfg, mergedCfg.Replicas)
 		svc := NewMasterServiceHeadless(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
-		groupReconcilers := []core.ResourceReconciler{cm, statefulset, svc}
+		logging := NewMasterLogging(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
+		groupReconcilers := []core.ResourceReconciler{cm, logging, statefulset, svc}
 		if mergedCfg.Config.PodDisruptionBudget != nil {
 			pdb := resource.NewReconcilePDB(r.client, r.scheme, r.instance, labels, groupName,
 				common.PdbCfg(mergedCfg.Config.PodDisruptionBudget))

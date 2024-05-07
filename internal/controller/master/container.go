@@ -231,4 +231,4 @@ func (c *ContainerBuilder) ContainerName() string {
 	return string(ContainerMaster)
 }
 
-const ContainerMaster resource.ContainerComponent = resource.ContainerComponent(core.Master)
+const ContainerMaster resource.ContainerComponent = resource.ContainerComponent(common.Master)
