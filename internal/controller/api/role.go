@@ -77,9 +77,10 @@ func (r *RoleApiRequirements) RegisterResources(ctx context.Context) map[string]
 		mergedCfg := value.(*dolphinv1alpha1.ApiRoleGroupSpec)
 		labels := helper.GroupLabels(r.roleLabels, groupName, mergedCfg.Config.NodeSelector)
 		statefulset := NewDeployment(ctx, r.scheme, r.instance, r.client, groupName, labels, mergedCfg, mergedCfg.Replicas)
+		logging := NewApiLogging(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
 		svc := NewApiService(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
 		ingress := NewIngress(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
-		groupReconcilers := []core.ResourceReconciler{statefulset, svc, ingress}
+		groupReconcilers := []core.ResourceReconciler{logging, statefulset, svc, ingress}
 		if mergedCfg.Config.PodDisruptionBudget != nil {
 			pdb := resource.NewReconcilePDB(r.client, r.scheme, r.instance, labels, groupName,
 				common.PdbCfg(mergedCfg.Config.PodDisruptionBudget))

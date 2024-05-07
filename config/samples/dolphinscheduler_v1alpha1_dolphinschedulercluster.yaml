@@ -24,17 +24,6 @@ spec:
       default:
         replicas: 1
         config:
-          logging:
-            logging:
-              loggers:
-                logger1:
-                  level: ERROR
-                logger2:
-                  level: DEBUG
-              console:
-                level: WARN
-              file:
-                level: WARN
           resources:
             cpu:
               min: 1
@@ -54,17 +43,7 @@ spec:
               max: 2
             memory:
               limit: "3Gi"
-          logging:
-            logging:
-              loggers:
-                logger1:
-                  level: ERROR
-                logger2:
-                  level: DEBUG
-              console:
-                level: WARN
-              file:
-                level: WARN
+
   api:
     image:
       pullPolicy: IfNotPresent
@@ -78,6 +57,17 @@ spec:
               max: 2
             memory:
               limit: "3Gi"
+          logging:
+            logging:
+              loggers:
+                logger1:
+                  level: ERROR
+                logger2:
+                  level: DEBUG
+              console:
+                level: WARN
+              file:
+                level: WARN
   alerter:
     image:
       pullPolicy: IfNotPresent
