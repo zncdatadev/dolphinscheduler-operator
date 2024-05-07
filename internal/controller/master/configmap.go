@@ -48,6 +48,10 @@ func (c *ConfigMapReconciler) Build(ctx context.Context) ([]core.ResourceBuilder
 func (c *ConfigMapReconciler) createEnvConfigMapReconciler() core.ResourceBuilder {
 	var generators []interface{}
 	generators = append(generators, &common.EnvPropertiesGenerator{})
+	var configOverrideHandler core.ConfigurationOverride
+	if cfgOverride := c.MergedCfg.ConfigOverrides; cfgOverride != nil {
+		configOverrideHandler = &EnvConfigmapOverride{EnvOverrideSpec: cfgOverride.Envs}
+	}
 	cm := resource.NewGeneralConfigMap(
 		c.Scheme,
 		c.Instance,
@@ -57,7 +61,7 @@ func (c *ConfigMapReconciler) createEnvConfigMapReconciler() core.ResourceBuilde
 		c.MergedCfg,
 		common.EnvsConfigMapName(c.Instance.GetName(), c.GroupName),
 		generators,
-		&EnvConfigmapOverride{EnvOverrideSpec: c.MergedCfg.ConfigOverrides.Envs},
+		configOverrideHandler,
 	)
 	return cm
 }
@@ -67,6 +71,10 @@ func (c *ConfigMapReconciler) createConfigConfigMapReconciler() core.ResourceBui
 	var generators []interface{}
 	generators = append(generators, common.NewConfigPropertiesGenerator(c.Instance.Spec.ClusterConfigSpec.S3Bucket,
 		c.Client, c.Instance.GetNamespace()))
+	var configOverrideHandler core.ConfigurationOverride
+	if cfgOverride := c.MergedCfg.ConfigOverrides; cfgOverride != nil {
+		configOverrideHandler = &CommonPropertiesConfigmapOverride{CommonPropertiesOverrideSpec: cfgOverride.CommonProperties}
+	}
 	cm := resource.NewGeneralConfigMap(
 		c.Scheme,
 		c.Instance,
@@ -76,7 +84,7 @@ func (c *ConfigMapReconciler) createConfigConfigMapReconciler() core.ResourceBui
 		c.MergedCfg,
 		common.ConfigConfigMapName(c.Instance.GetName(), c.GroupName),
 		generators,
-		&CommonPropertiesConfigmapOverride{CommonPropertiesOverrideSpec: c.MergedCfg.ConfigOverrides.CommonProperties},
+		configOverrideHandler,
 	)
 	return cm
 }
@@ -90,6 +98,9 @@ type EnvConfigmapOverride struct {
 }
 
 func (e *EnvConfigmapOverride) ConfigurationOverride(obj client.Object) {
+	if e.EnvOverrideSpec == nil {
+		return
+	}
 	cm := obj.(*corev1.ConfigMap)
 	origin := cm.Data
 	resource.OverrideConfigmapEnvs(&origin, e.EnvOverrideSpec)

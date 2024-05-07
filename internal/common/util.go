@@ -63,42 +63,29 @@ func CreateKvContentByReplicas(replicas int32, keyTemplate string, valueTemplate
 	return res
 }
 
-func CreateLog4jBuilder(containerLogging *dolphinv1alpha1.LoggingConfigSpec, consoleAppenderName,
-	fileAppenderName string, fileLogLocation string) *resource.Log4jLoggingDataBuilder {
-	log4jBuilder := &resource.Log4jLoggingDataBuilder{}
-	if loggers := containerLogging.Loggers; loggers != nil {
-		var builderLoggers []resource.LogBuilderLoggers
-		for logger, level := range loggers {
-			builderLoggers = append(builderLoggers, resource.LogBuilderLoggers{
-				Logger: logger,
-				Level:  level.Level,
-			})
-		}
-		log4jBuilder.Loggers = builderLoggers
-	}
-	if console := containerLogging.Console; console != nil {
-		log4jBuilder.Console = &resource.LogBuilderAppender{
-			AppenderName: consoleAppenderName,
-			Level:        console.Level,
-		}
-	}
-	if file := containerLogging.File; file != nil {
-		log4jBuilder.File = &resource.LogBuilderAppender{
-			AppenderName:       fileAppenderName,
-			Level:              file.Level,
-			DefaultLogLocation: fileLogLocation,
-		}
-	}
-
-	return log4jBuilder
-}
-
 func K8sEnvRef(envName string) string {
 	return fmt.Sprintf("$(%s)", envName)
 }
 
 func LinuxEnvRef(envName string) string {
 	return fmt.Sprintf("$%s", envName)
+}
+
+func TransformApiLogger(logging *dolphinv1alpha1.LoggingConfigSpec) *resource.TextTemplateLoggingDataBuilder {
+	var customLoggers []resource.LoggerLevel
+	for logger, lvl := range logging.Loggers {
+		customLoggers = append(customLoggers, resource.LoggerLevel{
+			Logger: logger,
+			Level:  lvl.Level,
+		})
+	}
+	return &resource.TextTemplateLoggingDataBuilder{
+		Loggers: customLoggers,
+		Console: &resource.LoggingAppender{
+			Level: logging.Console.Level,
+		},
+		File: &resource.LoggingAppender{Level: logging.File.Level},
+	}
 }
 
 func PdbCfg(pdbSpec *dolphinv1alpha1.PodDisruptionBudgetSpec) *core.PdbConfig {
@@ -133,11 +120,6 @@ func ExtractDataBaseReference(dbSpec *dolphinv1alpha1.DatabaseSpec, ctx context.
 }
 
 func MakeDataBaseEnvs(params *resource.DatabaseParams) []corev1.EnvVar {
-	//db, params := ExtractDataBaseReference(dbSpec, ctx, client, namespace)
-	//uri, err := db.GetURI()
-	//if err != nil {
-	//	panic(err)
-	//}
 	uri := resource.ToUri(params)
 	return []corev1.EnvVar{
 		{
