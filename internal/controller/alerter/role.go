@@ -17,14 +17,14 @@ func NewAlerterRole(
 	client client.Client) *core.BaseRoleReconciler[*dolphinv1alpha1.DolphinschedulerCluster] {
 	dolphinInstance := &common.DolphinSchedulerClusterInstance{Instance: instance}
 	LabelHelper := core.RoleLabelHelper{}
-	roleLabels := LabelHelper.RoleLabels(instance.GetName(), core.Alerter)
+	roleLabels := LabelHelper.RoleLabels(instance.GetName(), getRole())
 	alerterHelper := NewRoleAlerterRequirements(scheme, instance, roleLabels, client)
 
 	var pdb core.ResourceReconciler
 	if instance.Spec.Alerter.PodDisruptionBudget != nil {
-		pdb = resource.NewReconcilePDB(client, scheme, instance, roleLabels, string(core.Alerter), common.PdbCfg(instance.Spec.Alerter.PodDisruptionBudget))
+		pdb = resource.NewReconcilePDB(client, scheme, instance, roleLabels, string(getRole()), common.PdbCfg(instance.Spec.Alerter.PodDisruptionBudget))
 	}
-	return core.NewBaseRoleReconciler(scheme, instance, client, core.Alerter, roleLabels, dolphinInstance, alerterHelper, pdb)
+	return core.NewBaseRoleReconciler(scheme, instance, client, getRole(), roleLabels, dolphinInstance, alerterHelper, pdb)
 }
 
 func NewRoleAlerterRequirements(scheme *runtime.Scheme, instance *dolphinv1alpha1.DolphinschedulerCluster,
@@ -74,7 +74,7 @@ func (r *RoleAlerterRequirements) RegisterResources(ctx context.Context) map[str
 	var reconcilers = map[string][]core.ResourceReconciler{}
 	helper := core.RoleLabelHelper{}
 	for _, groupName := range r.groups {
-		value := core.GetRoleGroup(r.instance.Name, core.Alerter, groupName)
+		value := core.GetRoleGroup(r.instance.Name, getRole(), groupName)
 		mergedCfg := value.(*dolphinv1alpha1.AlerterRoleGroupSpec)
 		labels := helper.GroupLabels(r.roleLabels, groupName, mergedCfg.Config.NodeSelector)
 		logging := NewAlerterLogging(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)

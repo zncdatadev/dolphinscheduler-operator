@@ -13,11 +13,6 @@ import (
 
 type Role string
 
-const Master Role = "master"
-const Worker Role = "worker"
-const Alerter Role = "alerter"
-const Api Role = "api"
-
 type RoleReconciler interface {
 	MergeConfig()
 	ReconcileRole(ctx context.Context) (ctrl.Result, error)

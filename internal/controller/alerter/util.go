@@ -3,16 +3,17 @@ package alerter
 import (
 	"fmt"
 	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
+	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/util"
 )
 
 func createDeploymentName(instanceName string, groupName string) string {
-	return util.NewResourceNameGenerator(instanceName, string(core.Alerter), groupName).GenerateResourceName("")
+	return util.NewResourceNameGenerator(instanceName, string(common.Alerter), groupName).GenerateResourceName("")
 }
 
 func createSvcName(instanceName string, groupName string) string {
-	return util.NewResourceNameGenerator(instanceName, string(core.Alerter), groupName).GenerateResourceName("")
+	return util.NewResourceNameGenerator(instanceName, string(common.Alerter), groupName).GenerateResourceName("")
 }
 
 func configVolumeName() string {
@@ -31,5 +32,5 @@ func logbackMountPath() string {
 }
 
 func getRole() core.Role {
-	return core.Alerter
+	return common.Alerter
 }

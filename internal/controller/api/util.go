@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
+	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
 	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/util"
 )
@@ -35,5 +36,5 @@ func logbackMountPath() string {
 }
 
 func getRole() core.Role {
-	return core.Api
+	return common.Api
 }

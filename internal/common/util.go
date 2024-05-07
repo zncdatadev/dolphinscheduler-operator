@@ -14,6 +14,11 @@ import (
 	"strings"
 )
 
+const Master core.Role = "master"
+const Worker core.Role = "worker"
+const Alerter core.Role = "alerter"
+const Api core.Role = "api"
+
 func ConfigConfigMapName(instanceName string, groupName string) string {
 	return util.NewResourceNameGenerator(instanceName, "", groupName).GenerateResourceName("config")
 }
@@ -153,22 +158,22 @@ type DolphinSchedulerClusterInstance struct {
 
 func (k *DolphinSchedulerClusterInstance) GetRoleConfig(role core.Role) *core.RoleConfiguration {
 	switch role {
-	case core.Master:
+	case Master:
 		masterSpec := k.Instance.Spec.Master
 		roleGetter := &DolphinSchedulerRoleGetter{masterSpec.Config}
 		groups := maps.Keys(masterSpec.RoleGroups)
 		return k.transformRoleSpec(roleGetter, groups, masterSpec.PodDisruptionBudget)
-	case core.Worker:
+	case Worker:
 		workerSpec := k.Instance.Spec.Worker
 		roleGetter := &DolphinSchedulerRoleGetter{workerSpec.Config}
 		groups := maps.Keys(workerSpec.RoleGroups)
 		return k.transformRoleSpec(roleGetter, groups, workerSpec.PodDisruptionBudget)
-	case core.Alerter:
+	case Alerter:
 		alerterSpec := k.Instance.Spec.Alerter
 		roleGetter := &DolphinSchedulerRoleGetter{alerterSpec.Config}
 		groups := maps.Keys(alerterSpec.RoleGroups)
 		return k.transformRoleSpec(roleGetter, groups, alerterSpec.PodDisruptionBudget)
-	case core.Api:
+	case Api:
 		apiSpec := k.Instance.Spec.Api
 		roleGetter := &DolphinSchedulerRoleGetter{apiSpec.Config}
 		groups := maps.Keys(apiSpec.RoleGroups)

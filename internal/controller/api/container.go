@@ -165,4 +165,4 @@ func (c *ContainerBuilder) ContainerName() string {
 	return string(ContainerApi)
 }
 
-const ContainerApi resource.ContainerComponent = resource.ContainerComponent(core.Api)
+const ContainerApi resource.ContainerComponent = resource.ContainerComponent(common.Api)
