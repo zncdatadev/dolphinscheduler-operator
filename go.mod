@@ -6,7 +6,7 @@ require (
 	github.com/cisco-open/k8s-objectmatcher v1.9.0
 	github.com/go-logr/logr v1.4.1
 	github.com/onsi/ginkgo/v2 v2.17.2
-	github.com/onsi/gomega v1.33.0
+	github.com/onsi/gomega v1.33.1
 	github.com/stretchr/testify v1.8.4
 	github.com/zncdata-labs/operator-go v0.4.0
 	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e
