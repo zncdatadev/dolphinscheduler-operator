@@ -12,13 +12,6 @@ import (
 	"text/template"
 )
 
-const (
-	DefaultFileAppender = "FILE"
-	NoneAppender        = "None"
-	//ConsoleLogAppender  = "dolphinAppender"
-	//FileLogAppender     = NoneAppender
-)
-
 // NewLoggingReconciler new logging reconcile
 func NewLoggingReconciler[T client.Object](
 	scheme *runtime.Scheme,

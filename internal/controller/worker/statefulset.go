@@ -34,6 +34,9 @@ func newStatefulSetBuilderRequirements(
 	containers := createContainers(instance, groupName, client, mergedCfg, ctx)
 	workloadResourceRequirements := resource.NewGenericWorkloadRequirements(string(core.Worker), &containers,
 		mergedCfg.CommandArgsOverrides, mergedCfg.EnvOverrides, &instance.Status.Conditions)
+	// optional, set logging override handler
+	workloadResourceRequirements.LoggingOverrideHandler = resource.NewLoggingOverrideHandler(logbackConfigVolumeName(),
+		logbackConfigMapName(instance.GetName(), groupName), logbackMountPath(), dolphinv1alpha1.LogbackPropertiesFileName)
 	return &StatefulSetBuilderRequirements{
 		instance:                     instance,
 		groupName:                    groupName,

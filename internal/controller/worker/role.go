@@ -76,9 +76,10 @@ func (r *RoleWorkerRequirements) RegisterResources(ctx context.Context) map[stri
 		value := core.GetRoleGroup(r.instance.Name, core.Worker, groupName)
 		mergedCfg := value.(*dolphinv1alpha1.WorkerRoleGroupSpec)
 		labels := helper.GroupLabels(r.roleLabels, groupName, mergedCfg.Config.NodeSelector)
+		logging := NewWorkerLogging(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
 		statefulset := NewStatefulSet(ctx, r.scheme, r.instance, r.client, groupName, labels, mergedCfg, mergedCfg.Replicas)
 		svc := NewWorkerServiceHeadless(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
-		groupReconcilers := []core.ResourceReconciler{statefulset, svc}
+		groupReconcilers := []core.ResourceReconciler{logging, statefulset, svc}
 		if mergedCfg.Config.PodDisruptionBudget != nil {
 			pdb := resource.NewReconcilePDB(r.client, r.scheme, r.instance, labels, groupName,
 				common.PdbCfg(mergedCfg.Config.PodDisruptionBudget))
