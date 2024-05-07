@@ -33,6 +33,10 @@ func newDeploymentBuilderRequirements(
 	containers := createContainers(instance, groupName, client, mergedCfg, ctx)
 	workloadResourceRequirements := resource.NewGenericWorkloadRequirements(string(core.Alerter), &containers,
 		mergedCfg.CommandArgsOverrides, mergedCfg.EnvOverrides, &instance.Status.Conditions)
+	// optional, set logging override handler
+	workloadResourceRequirements.LoggingOverrideHandler = resource.NewLoggingOverrideHandler(logbackConfigVolumeName(),
+		logbackConfigMapName(instance.GetName(), groupName), logbackMountPath(),
+		dolphinv1alpha1.LogbackPropertiesFileName)
 	return &DeploymentBuilderRequirements{
 		instance:                     instance,
 		groupName:                    groupName,

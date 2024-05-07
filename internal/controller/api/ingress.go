@@ -39,7 +39,7 @@ type IngressReconciler struct {
 func (i *IngressReconciler) Build(ctx context.Context) (client.Object, error) {
 	return &v1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "dolphinscheduler",
+			Name:      ingressName(i.Instance.GetName(), i.GroupName),
 			Namespace: i.Instance.Namespace,
 			Labels:    i.Labels,
 		},

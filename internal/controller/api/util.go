@@ -15,6 +15,10 @@ func createSvcName(instanceName string, groupName string) string {
 	return util.NewResourceNameGenerator(instanceName, string(getRole()), groupName).GenerateResourceName("")
 }
 
+func ingressName(instanceName string, groupName string) string {
+	return util.NewResourceNameGenerator(instanceName, string(getRole()), groupName).GenerateResourceName("")
+}
+
 func configVolumeName() string {
 	return "config"
 }

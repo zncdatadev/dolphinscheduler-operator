@@ -77,9 +77,10 @@ func (r *RoleAlerterRequirements) RegisterResources(ctx context.Context) map[str
 		value := core.GetRoleGroup(r.instance.Name, core.Alerter, groupName)
 		mergedCfg := value.(*dolphinv1alpha1.AlerterRoleGroupSpec)
 		labels := helper.GroupLabels(r.roleLabels, groupName, mergedCfg.Config.NodeSelector)
+		logging := NewAlerterLogging(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
 		statefulset := NewDeployment(ctx, r.scheme, r.instance, r.client, groupName, labels, mergedCfg, mergedCfg.Replicas)
 		svc := NewAlerterService(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
-		groupReconcilers := []core.ResourceReconciler{statefulset, svc}
+		groupReconcilers := []core.ResourceReconciler{logging, statefulset, svc}
 		if mergedCfg.Config.PodDisruptionBudget != nil {
 			pdb := resource.NewReconcilePDB(r.client, r.scheme, r.instance, labels, groupName,
 				common.PdbCfg(mergedCfg.Config.PodDisruptionBudget))
