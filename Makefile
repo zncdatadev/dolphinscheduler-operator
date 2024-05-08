@@ -54,9 +54,10 @@ endif
 OPERATOR_SDK_VERSION ?= v1.33.0
 
 # Image URL to use all building/pushing image targets
-IMG ?= $(IMAGE_TAG_BASE):v$(VERSION)
+IMG ?= $(REGISTRY)/$(PROJECT_NAME):v$(VERSION)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.26.1
+# ref: https://github.com/kubernetes-sigs/kubebuilder/releases in v3.11.0-v3.14.1 ENVTEST_K8S_VERSION support 1.26.1 and 1.27.1
+ENVTEST_K8S_VERSION ?= 1.26.1
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -150,10 +151,10 @@ PLATFORMS ?= linux/arm64,linux/amd64
 docker-buildx: test ## Build and push docker image for the manager for cross-platform support
 	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
-	- $(CONTAINER_TOOL) buildx create --name project-v3-builder
+	$(CONTAINER_TOOL) buildx create --name project-v3-builder
 	$(CONTAINER_TOOL) buildx use project-v3-builder
-	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
-	- $(CONTAINER_TOOL) buildx rm project-v3-builder
+	$(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
+	$(CONTAINER_TOOL) buildx rm project-v3-builder
 	rm Dockerfile.cross
 
 ##@ Deployment
@@ -170,7 +171,7 @@ install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~
 
 .PHONY: uninstall
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/crd | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
@@ -181,7 +182,7 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/default | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ##@ Build Dependencies
 
@@ -191,7 +192,6 @@ $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
 
 ## Tool Binaries
-KUBECTL ?= kubectl
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
@@ -199,6 +199,7 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.3.0
 CONTROLLER_TOOLS_VERSION ?= v0.13.0
+
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary. If wrong version is installed, it will be removed before downloading.
@@ -208,6 +209,7 @@ $(KUSTOMIZE): $(LOCALBIN)
 		rm -rf $(LOCALBIN)/kustomize; \
 	fi
 	test -s $(LOCALBIN)/kustomize || GOBIN=$(LOCALBIN) GO111MODULE=on go install sigs.k8s.io/kustomize/kustomize/v5@$(KUSTOMIZE_VERSION)
+
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary. If wrong version is installed, it will be overwritten.
@@ -245,13 +247,35 @@ bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metada
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	$(OPERATOR_SDK) bundle validate ./bundle
 
+.PHONY: scorecard-test
+scorecard-test: bundle ## Run the scorecard tests
+	$(OPERATOR_SDK) scorecard bundle
+
 .PHONY: bundle-build
 bundle-build: ## Build the bundle image.
-	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+	$(CONTAINER_TOOL) build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
 	$(MAKE) docker-push IMG=$(BUNDLE_IMG)
+
+.PHONY: bundle-buildx
+bundle-buildx: ## Build the bundle image.
+	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
+	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' bundle.Dockerfile > bundle.Dockerfile.cross
+	- $(CONTAINER_TOOL) buildx create --name project-v3-builder
+	$(CONTAINER_TOOL) buildx use project-v3-builder
+	$(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${BUNDLE_IMG} -f bundle.Dockerfile.cross .
+	$(CONTAINER_TOOL) buildx rm project-v3-builder
+	rm bundle.Dockerfile.cross
+
+.PHONY: bundle-run
+bundle-run: ## Run the bundle image.
+	$(OPERATOR_SDK) run bundle $(BUNDLE_IMG)
+
+.PHONY: bundle-cleanup
+bundle-cleanup: ## Clean up the bundle image.
+	$(OPERATOR_SDK) cleanup $(PROJECT_NAME)
 
 .PHONY: opm
 OPM = ./bin/opm
@@ -262,7 +286,7 @@ ifeq (,$(shell which opm 2>/dev/null))
 	set -e ;\
 	mkdir -p $(dir $(OPM)) ;\
 	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v1.23.0/$${OS}-$${ARCH}-opm ;\
+	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v1.29.0/$${OS}-$${ARCH}-opm ;\
 	chmod +x $(OPM) ;\
 	}
 else
@@ -270,26 +294,117 @@ OPM = $(shell which opm)
 endif
 endif
 
-# A comma-separated list of bundle images (e.g. make catalog-build BUNDLE_IMGS=example.com/operator-bundle:v0.1.0,example.com/operator-bundle:v0.2.0).
-# These images MUST exist in a registry and be pull-able.
-BUNDLE_IMGS ?= $(BUNDLE_IMG)
-
 # The image tag given to the resulting catalog image (e.g. make catalog-build CATALOG_IMG=example.com/operator-catalog:v0.2.0).
-CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:v$(VERSION)
+CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:latest
 
-# Set CATALOG_BASE_IMG to an existing catalog image tag to add $BUNDLE_IMGS to that image.
-ifneq ($(origin CATALOG_BASE_IMG), undefined)
-FROM_INDEX_OPT := --from-index $(CATALOG_BASE_IMG)
-endif
-
-# Build a catalog image by adding bundle images to an empty catalog using the operator package manager tool, 'opm'.
-# This recipe invokes 'opm' in 'semver' bundle add mode. For more information on add modes, see:
-# https://github.com/operator-framework/community-operators/blob/7f1438c/docs/packaging-operator.md#updating-your-existing-operator
 .PHONY: catalog-build
-catalog-build: opm ## Build a catalog image.
-	$(OPM) index add --container-tool docker --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
+catalog-build: opm ## Build a catalog manifests.
+	mkdir -p catalog
+	@if ! test -f ./catalog.Dockerfile; then \
+		$(OPM) generate dockerfile catalog; \
+	fi
+	sed -E "s|(image: ).*-bundle:v$(VERSION)|\1$(BUNDLE_IMG)|g" catalog-template.yaml | \
+	$(OPM) alpha render-template basic -o yaml > catalog/catalog.yaml
+
+.PHONY: catalog-docker-build
+catalog-docker-build: ## Build a catalog image.
+	$(CONTAINER_TOOL) build -t ${CATALOG_IMG} -f catalog.Dockerfile .
 
 # Push the catalog image.
-.PHONY: catalog-push
-catalog-push: ## Push a catalog image.
+.PHONY: catalog-docker-push
+catalog-docker-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
+
+.PHONY: catalog-docker-buildx
+catalog-docker-buildx: ## Build and push a catalog image for cross-platform support
+	- $(CONTAINER_TOOL) buildx create --name project-v3-builder
+	$(CONTAINER_TOOL) buildx use project-v3-builder
+	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) -f catalog.Dockerfile --tag ${CATALOG_IMG} .
+	- $(CONTAINER_TOOL) buildx rm project-v3-builder
+
+##@ E2E
+
+# kind
+KIND_VERSION ?= v0.22.0
+
+KINDTEST_K8S_VERSION ?= 1.26.14
+
+KIND_IMAGE ?= kindest/node:v${KINDTEST_K8S_VERSION}
+
+KIND_KUBECONFIG ?= ./kind-kubeconfig-$(KINDTEST_K8S_VERSION)
+KIND_CLUSTER_NAME ?= ${PROJECT_NAME}-$(KINDTEST_K8S_VERSION)
+
+.PHONY: kind
+KIND = $(LOCALBIN)/kind
+kind: ## Download kind locally if necessary.
+ifeq (,$(shell which $(KIND)))
+ifeq (,$(shell which kind 2>/dev/null))
+	@{ \
+	set -e ;\
+	go install sigs.k8s.io/kind@$(KIND_VERSION) ;\
+	}
+KIND = $(GOBIN)/bin/kind
+else
+KIND = $(shell which kind)
+endif
+endif
+
+OLM_VERSION ?= v0.27.0
+
+# Create a kind cluster, install ingress-nginx, and wait for it to be available.
+.PHONY: kind-create
+kind-create: kind ## Create a kind cluster.
+	$(KIND) create cluster --config test/e2e/kind-config.yaml --image $(KIND_IMAGE) --name $(KIND_CLUSTER_NAME) --kubeconfig $(KIND_KUBECONFIG) --wait 120s
+	make kind-setup KUBECONFIG=$(KIND_KUBECONFIG)
+
+.PHONY: kind-setup
+kind-setup: kind ## setup kind cluster base environment
+	@echo "\nSetup kind cluster base environment, install ingress-nginx and OLM"
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+	kubectl -n ingress-nginx wait deployment ingress-nginx-controller --for=condition=available --timeout=300s
+	curl -sSL https://github.com/operator-framework/operator-lifecycle-manager/releases/download/$(OLM_VERSION)/install.sh | bash -s $(OLM_VERSION)
+
+.PHONY: kind-delete
+kind-delete: kind ## Delete a kind cluster.
+	$(KIND) delete cluster --name $(KIND_CLUSTER_NAME)
+
+# chainsaw
+
+CHAINSAW_VERSION ?= v0.1.8
+
+.PHONY: chainsaw
+CHAINSAW = $(LOCALBIN)/chainsaw
+chainsaw: ## Download chainsaw locally if necessary.
+ifeq (,$(shell which $(CHAINSAW)))
+ifeq (,$(shell which chainsaw 2>/dev/null))
+	@{ \
+	set -e ;\
+	go install github.com/kyverno/chainsaw@$(CHAINSAW_VERSION) ;\
+	}
+CHAINSAW = $(GOBIN)/chainsaw
+else
+CHAINSAW = $(shell which chainsaw)
+endif
+endif
+
+# chainsaw setup logical
+# - Build the operator docker image
+# - Load the operator docker image into the kind cluster. When create
+#   operator deployment, it will use the image in the kind cluster.
+# - Rebuild the bundle. If override VERSION / REGISTRY or other variables,
+#   we need to rebuild the bundle to use the new image, or other changes.
+.PHONY: chainsaw-setup
+chainsaw-setup: manifests kustomize ## Run the chainsaw setup
+	@echo "\nSetup chainsaw test environment"
+	make docker-build
+	$(KIND) --name $(KIND_CLUSTER_NAME) load docker-image $(IMG)
+	KUBECONFIG=$(KIND_KUBECONFIG) make deploy
+
+.PHONY: chainsaw-test
+chainsaw-test: chainsaw ## Run the chainsaw test
+	$(CHAINSAW) test --cluster cluster-1=$(KIND_KUBECONFIG) --test-dir ./test/e2e
+
+
+.PHONY: chainsaw-cleanup
+chainsaw-cleanup: manifests kustomize ## Run the chainsaw cleanup
+	KUBECONFIG=$(KIND_KUBECONFIG) make undeploy

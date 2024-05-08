@@ -28,3 +28,6 @@ Dockerfile.cross
 # bundle
 bundle.Dockerfile
 bundle
+
+catalog
+catalog.Dockerfile

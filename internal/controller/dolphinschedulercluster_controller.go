@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/client-go/util/retry"
 
 	dolphinschedulerv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
@@ -38,6 +39,9 @@ type DolphinschedulerClusterReconciler struct {
 //+kubebuilder:rbac:groups=dolphinscheduler.zncdata.dev,resources=dolphinschedulerclusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=dolphinscheduler.zncdata.dev,resources=dolphinschedulerclusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=dolphinscheduler.zncdata.dev,resources=dolphinschedulerclusters/finalizers,verbs=update
+//+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
@@ -101,5 +105,6 @@ func (r *DolphinschedulerClusterReconciler) UpdateStatus(ctx context.Context, in
 func (r *DolphinschedulerClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&dolphinschedulerv1alpha1.DolphinschedulerCluster{}).
+		Owns(&appsv1.StatefulSet{}).
 		Complete(r)
 }
