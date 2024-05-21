@@ -3,12 +3,13 @@ package core
 import (
 	"context"
 	"fmt"
-	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/util"
-	"k8s.io/apimachinery/pkg/runtime"
 	"reflect"
+	"strings"
+
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/util"
+	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
 type Role string

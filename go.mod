@@ -1,4 +1,4 @@
-module github.com/zncdata-labs/dolphinscheduler-operator
+module github.com/zncdatadev/dolphinscheduler-operator
 
 go 1.21
 
@@ -8,7 +8,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.17.2
 	github.com/onsi/gomega v1.33.1
 	github.com/stretchr/testify v1.9.0
-	github.com/zncdata-labs/operator-go v0.4.0
+	github.com/zncdatadev/operator-go v0.5.0
 	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e
 	k8s.io/api v0.29.3
 	k8s.io/apimachinery v0.29.3

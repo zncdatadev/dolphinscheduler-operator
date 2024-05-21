@@ -3,10 +3,11 @@ package controller
 import (
 	"context"
 	"fmt"
-	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
-	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
-	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
-	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
+
+	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
+	"github.com/zncdatadev/dolphinscheduler-operator/internal/common"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/core"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/resource"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

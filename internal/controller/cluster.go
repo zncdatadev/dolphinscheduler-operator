@@ -1,12 +1,12 @@
 package controller
 
 import (
-	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
-	"github.com/zncdata-labs/dolphinscheduler-operator/internal/controller/alerter"
-	"github.com/zncdata-labs/dolphinscheduler-operator/internal/controller/api"
-	"github.com/zncdata-labs/dolphinscheduler-operator/internal/controller/master"
-	"github.com/zncdata-labs/dolphinscheduler-operator/internal/controller/worker"
-	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
+	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
+	"github.com/zncdatadev/dolphinscheduler-operator/internal/controller/alerter"
+	"github.com/zncdatadev/dolphinscheduler-operator/internal/controller/api"
+	"github.com/zncdatadev/dolphinscheduler-operator/internal/controller/master"
+	"github.com/zncdatadev/dolphinscheduler-operator/internal/controller/worker"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/core"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )

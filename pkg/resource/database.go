@@ -2,13 +2,14 @@ package resource
 
 import (
 	"fmt"
-	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
-	commonsv1alph1 "github.com/zncdata-labs/operator-go/pkg/apis/commons/v1alpha1"
-	"github.com/zncdata-labs/operator-go/pkg/util"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strconv"
 	"strings"
+
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/core"
+	commonsv1alph1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
+	"github.com/zncdatadev/operator-go/pkg/util"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type DataBaseType string
