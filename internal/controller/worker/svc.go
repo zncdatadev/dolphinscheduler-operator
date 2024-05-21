@@ -1,8 +1,8 @@
 package worker
 
 import (
-	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
-	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
+	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/resource"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"

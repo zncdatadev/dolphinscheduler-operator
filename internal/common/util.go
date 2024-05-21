@@ -3,15 +3,16 @@ package common
 import (
 	"context"
 	"fmt"
-	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
-	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
-	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
-	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/util"
+	"strconv"
+	"strings"
+
+	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/core"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/resource"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/util"
 	"golang.org/x/exp/maps"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strconv"
-	"strings"
 )
 
 const Master core.Role = "master"

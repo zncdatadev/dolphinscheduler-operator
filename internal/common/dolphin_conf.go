@@ -2,9 +2,10 @@ package common
 
 import (
 	"context"
-	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
-	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
-	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
+
+	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/core"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/resource"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

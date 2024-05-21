@@ -10,8 +10,7 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
-    - description: DolphinschedulerCluster is the Schema for the dolphinschedulerclusters
-        API
+    - description: DolphinschedulerCluster is the Schema for the dolphinschedulerclusters API
       displayName: Dolphinscheduler Cluster
       kind: DolphinschedulerCluster
       name: dolphinschedulerclusters.dolphinscheduler.zncdata.dev
@@ -45,6 +44,6 @@ spec:
     name: luwei
   maturity: alpha
   provider:
-    name: zmcdata-labs
-    url: https://github.com/zncdata-labs/dolphinscheduler-operator
+    name: zncdatadev
+    url: https://github.com/zncdatadev/dolphinscheduler-operator
   version: 0.0.0

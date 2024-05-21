@@ -2,10 +2,11 @@ package alerter
 
 import (
 	"fmt"
-	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
-	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
-	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
-	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/util"
+
+	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
+	"github.com/zncdatadev/dolphinscheduler-operator/internal/common"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/core"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/util"
 )
 
 func createDeploymentName(instanceName string, groupName string) string {

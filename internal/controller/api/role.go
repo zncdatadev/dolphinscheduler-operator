@@ -2,10 +2,11 @@ package api
 
 import (
 	"context"
-	dolphinv1alpha1 "github.com/zncdata-labs/dolphinscheduler-operator/api/v1alpha1"
-	"github.com/zncdata-labs/dolphinscheduler-operator/internal/common"
-	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
-	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/resource"
+
+	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
+	"github.com/zncdatadev/dolphinscheduler-operator/internal/common"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/core"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/resource"
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"

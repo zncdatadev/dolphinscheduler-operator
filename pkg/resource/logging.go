@@ -3,13 +3,14 @@ package resource
 import (
 	"bytes"
 	"context"
-	"github.com/zncdata-labs/dolphinscheduler-operator/pkg/core"
+	"text/template"
+
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/core"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"text/template"
 )
 
 // NewLoggingReconciler new logging reconcile
