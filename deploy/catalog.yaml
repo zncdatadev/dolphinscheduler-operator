@@ -7,9 +7,9 @@ spec:
   sourceType: grpc
   grpcPodConfig:
     securityContextConfig: restricted
-  image: registry.cn-hangzhou.aliyuncs.com/luwei-dev/dolphinscheduler-operator-catalog:latest
+  image: quay.io/zncdatadev/dolphinscheduler-operator-catalog:latest
   displayName: dolphinscheduler catalog
-  publisher: zncdata-labs
+  publisher: zncdatadev
   updateStrategy:
     registryPoll:
       interval: 5m

@@ -10,7 +10,8 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
-    - description: DolphinschedulerCluster is the Schema for the dolphinschedulerclusters API
+    - description: DolphinschedulerCluster is the Schema for the dolphinschedulerclusters
+        API
       displayName: Dolphinscheduler Cluster
       kind: DolphinschedulerCluster
       name: dolphinschedulerclusters.dolphinscheduler.zncdata.dev
