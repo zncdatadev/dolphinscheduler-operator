@@ -24,7 +24,7 @@ BUNDLE_DEFAULT_CHANNEL := --default-channel=$(DEFAULT_CHANNEL)
 endif
 BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 
-REGISTRY ?= quay.io/zncdata
+REGISTRY ?= quay.io/zncdatadev
 PROJECT_NAME = dolphinscheduler-operator
 
 # IMAGE_TAG_BASE defines the docker.io namespace and part of the image name for remote images.
