@@ -105,7 +105,7 @@ schema: olm.channel
 package: dolphinscheduler-operator
 name: stable
 entries:
-  - name: dolphinscheduler-operator.v0.0.1
+  - name: dolphinscheduler-operator.v0.0.0-dev
 ---
 schema: olm.bundle
-image: quay.io/zncdata/dolphinscheduler-operator-bundle:v0.0.1
+image: quay.io/zncdatadev/dolphinscheduler-operator-bundle:0.0.0-dev
