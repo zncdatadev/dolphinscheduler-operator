@@ -1,0 +1,46 @@
+---
+apiVersion: zookeeper.zncdata.dev/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  labels:
+    app.kubernetes.io/name: zookeeperznode
+    app.kubernetes.io/instance: dolphinscheduler-znode
+    app.kubernetes.io/part-of: zookeeper-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: zookeeper-operator
+  name: test-znode
+spec:
+  clusterRef:
+    name: test-zk
+---
+apiVersion: dolphinscheduler.zncdata.dev/v1alpha1
+kind: DolphinschedulerCluster
+metadata:
+  labels:
+    app.kubernetes.io/name: dolphinschedulercluster
+    app.kubernetes.io/instance: dolphinschedulercluster-sample
+    app.kubernetes.io/part-of: dolphinscheduler-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: dolphinscheduler-operator
+  name: test-dolphinscheduler
+spec:
+  clusterConfig:
+    zookeeperDiscoveryZNode: "test-znode"
+    database:
+      reference: database-sample
+  master:
+    roleGroups:
+      default:
+        replicas: 1
+  worker:
+    roleGroups:
+      default:
+        replicas: 1
+  api:
+    roleGroups:
+      default:
+        replicas: 1
+  alerter:
+    roleGroups:
+      default:
+        replicas: 1
