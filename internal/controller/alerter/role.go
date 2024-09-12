@@ -5,89 +5,69 @@ import (
 
 	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdatadev/dolphinscheduler-operator/internal/common"
-	"github.com/zncdatadev/dolphinscheduler-operator/pkg/core"
-	"github.com/zncdatadev/dolphinscheduler-operator/pkg/resource"
-	"golang.org/x/exp/maps"
-	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/util"
+	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
+	"github.com/zncdatadev/operator-go/pkg/client"
+	"github.com/zncdatadev/operator-go/pkg/reconciler"
+	opgoutil "github.com/zncdatadev/operator-go/pkg/util"
 )
 
 func NewAlerterRole(
-	scheme *runtime.Scheme,
-	instance *dolphinv1alpha1.DolphinschedulerCluster,
-	client client.Client) *core.BaseRoleReconciler[*dolphinv1alpha1.DolphinschedulerCluster] {
-	dolphinInstance := &common.DolphinSchedulerClusterInstance{Instance: instance}
-	LabelHelper := core.RoleLabelHelper{}
-	roleLabels := LabelHelper.RoleLabels(instance.GetName(), getRole())
-	alerterHelper := NewRoleAlerterRequirements(scheme, instance, roleLabels, client)
-
-	var pdb core.ResourceReconciler
-	if instance.Spec.Alerter.PodDisruptionBudget != nil {
-		pdb = resource.NewReconcilePDB(client, scheme, instance, roleLabels, string(getRole()), common.PdbCfg(instance.Spec.Alerter.PodDisruptionBudget))
-	}
-	return core.NewBaseRoleReconciler(scheme, instance, client, getRole(), roleLabels, dolphinInstance, alerterHelper, pdb)
-}
-
-func NewRoleAlerterRequirements(scheme *runtime.Scheme, instance *dolphinv1alpha1.DolphinschedulerCluster,
-	roleLabels map[string]string, client client.Client) *RoleAlerterRequirements {
-	return &RoleAlerterRequirements{
-		scheme:           scheme,
-		instance:         instance,
+	client *client.Client,
+	image *opgoutil.Image,
+	clusterConfigSpec *dolphinv1alpha1.ClusterConfigSpec,
+	clusterOperation *commonsv1alpha1.ClusterOperationSpec,
+	alertRoleSpec *dolphinv1alpha1.RoleSpec,
+	roleInfo reconciler.RoleInfo) *common.RoleReconciler {
+	alerterRoleResourcesReconcilersBuilder := &AlerterRoleResourceReconcilerBuilder{
 		client:           client,
-		groups:           maps.Keys(instance.Spec.Alerter.RoleGroups),
-		roleLabels:       roleLabels,
-		alerterRoleSpec:  instance.Spec.Alerter,
-		alerterGroupSpec: instance.Spec.Alerter.RoleGroups,
+		clusterOperation: clusterOperation,
+		image:            image,
+		zkConfigMapName:  clusterConfigSpec.ZookeeperConfigMapName,
 	}
+	return common.NewRoleReconciler(client, roleInfo, clusterOperation, clusterConfigSpec, image, *alertRoleSpec, alerterRoleResourcesReconcilersBuilder)
 }
 
-var _ core.RoleReconcilerRequirements = &RoleAlerterRequirements{}
+var _ common.RoleResourceReconcilersBuilder = &AlerterRoleResourceReconcilerBuilder{}
 
-type RoleAlerterRequirements struct {
-	scheme           *runtime.Scheme
-	instance         *dolphinv1alpha1.DolphinschedulerCluster
-	client           client.Client
-	groups           []string
-	roleLabels       map[string]string
-	alerterRoleSpec  *dolphinv1alpha1.AlerterSpec
-	alerterGroupSpec map[string]*dolphinv1alpha1.AlerterRoleGroupSpec
+type AlerterRoleResourceReconcilerBuilder struct {
+	client           *client.Client
+	clusterOperation *commonsv1alpha1.ClusterOperationSpec
+	image            *opgoutil.Image
+	zkConfigMapName  string
 }
 
-func (r *RoleAlerterRequirements) MergeConfig() map[string]any {
-	var mergedCfg = make(map[string]any)
-	for groupName, cfg := range r.alerterGroupSpec {
-		copiedRoleGroup := cfg.DeepCopy()
-		// Merge the role into the role group.
-		// if the role group has a config, and role group not has a config, will
-		// merge the role's config into the role group's config.
-		core.MergeObjects(copiedRoleGroup, r.alerterRoleSpec, []string{"RoleGroups"})
+// Buile implements common.RoleReconcilerBuilder.
+// alerter role has resources below:
+// - deployment
+// - service
+func (a *AlerterRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Context, roleGroupInfo *reconciler.RoleGroupInfo,
+	mergedCfg *dolphinv1alpha1.RoleGroupSpec) []reconciler.Reconciler {
+	var reconcilers []reconciler.Reconciler
 
-		// merge the role's config into the role group's config
-		if r.alerterRoleSpec.Config != nil && copiedRoleGroup.Config != nil {
-			core.MergeObjects(copiedRoleGroup.Config, r.alerterRoleSpec.Config, []string{})
-		}
-		mergedCfg[groupName] = copiedRoleGroup
-	}
-	return mergedCfg
-}
+	//Configmap
+	workerConfigMap := common.NewConfigMapReconciler(ctx, a.client, roleGroupInfo, MainContainerName, mergedCfg)
+	reconcilers = append(reconcilers, workerConfigMap)
 
-func (r *RoleAlerterRequirements) RegisterResources(ctx context.Context) map[string][]core.ResourceReconciler {
-	var reconcilers = map[string][]core.ResourceReconciler{}
-	helper := core.RoleLabelHelper{}
-	for _, groupName := range r.groups {
-		value := core.GetRoleGroup(r.instance.Name, getRole(), groupName)
-		mergedCfg := value.(*dolphinv1alpha1.AlerterRoleGroupSpec)
-		labels := helper.GroupLabels(r.roleLabels, groupName, mergedCfg.Config.NodeSelector)
-		logging := NewAlerterLogging(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
-		statefulset := NewDeployment(ctx, r.scheme, r.instance, r.client, groupName, labels, mergedCfg, mergedCfg.Replicas)
-		svc := NewAlerterService(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
-		groupReconcilers := []core.ResourceReconciler{logging, statefulset, svc}
-		if mergedCfg.Config.PodDisruptionBudget != nil {
-			pdb := resource.NewReconcilePDB(r.client, r.scheme, r.instance, labels, groupName,
-				common.PdbCfg(mergedCfg.Config.PodDisruptionBudget))
-			groupReconcilers = append(groupReconcilers, pdb)
-		}
-		reconcilers[groupName] = groupReconcilers
-	}
+	//deployment
+	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo).WithCommandArgs().WithEnvFrom().
+		WithPorts(util.SortedMap{
+			dolphinv1alpha1.AlerterPortName:       dolphinv1alpha1.AlerterPort,
+			dolphinv1alpha1.AlerterActualPortName: dolphinv1alpha1.AlerterActualPort,
+		}).
+		WithEnvs(util.SortedMap{"JAVA_OPTS": "-Xms512m -Xmx512m -Xmn256m"}).
+		WithReadinessAndLivenessProbe(dolphinv1alpha1.AlerterActualPort).
+		WithCommandArgs().
+		WithVolumeMounts(nil)
+	dep := common.CreateDeploymentReconciler(containerBuilder, ctx, a.client, a.image, a.clusterOperation, roleGroupInfo, mergedCfg, a.zkConfigMapName)
+	reconcilers = append(reconcilers, dep)
+
+	//svc
+	svc := common.NewServiceReconciler(a.client, common.RoleGroupServiceName(roleGroupInfo), false, nil, map[string]int32{
+		dolphinv1alpha1.AlerterPortName:       dolphinv1alpha1.AlerterPort,
+		dolphinv1alpha1.AlerterActualPortName: dolphinv1alpha1.AlerterActualPort,
+	}, roleGroupInfo.GetLabels(), roleGroupInfo.GetAnnotations())
+	reconcilers = append(reconcilers, svc)
+
 	return reconcilers
 }

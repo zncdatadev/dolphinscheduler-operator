@@ -5,90 +5,94 @@ import (
 
 	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdatadev/dolphinscheduler-operator/internal/common"
-	"github.com/zncdatadev/dolphinscheduler-operator/pkg/core"
-	"github.com/zncdatadev/dolphinscheduler-operator/pkg/resource"
-	"golang.org/x/exp/maps"
-	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/util"
+	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
+	"github.com/zncdatadev/operator-go/pkg/client"
+	"github.com/zncdatadev/operator-go/pkg/reconciler"
+	opgoutil "github.com/zncdatadev/operator-go/pkg/util"
 )
 
 func NewMasterRole(
-	scheme *runtime.Scheme,
-	instance *dolphinv1alpha1.DolphinschedulerCluster,
-	client client.Client) *core.BaseRoleReconciler[*dolphinv1alpha1.DolphinschedulerCluster] {
-	dolphinInstance := &common.DolphinSchedulerClusterInstance{Instance: instance}
-	LabelHelper := core.RoleLabelHelper{}
-	roleLabels := LabelHelper.RoleLabels(instance.GetName(), getRole())
-	masterHelper := NewRoleMasterRequirements(scheme, instance, roleLabels, client)
+	client *client.Client,
+	image *opgoutil.Image,
+	clusterConfigSpec *dolphinv1alpha1.ClusterConfigSpec,
+	clusterOperation *commonsv1alpha1.ClusterOperationSpec,
+	apiRoleSpec *dolphinv1alpha1.RoleSpec,
+	roleInfo reconciler.RoleInfo) *common.RoleReconciler {
 
-	var pdb core.ResourceReconciler
-	if instance.Spec.Alerter.PodDisruptionBudget != nil {
-		pdb = resource.NewReconcilePDB(client, scheme, instance, roleLabels, string(getRole()), common.PdbCfg(instance.Spec.Alerter.PodDisruptionBudget))
+	apiRoleResourcesReconcilersBuilder := &MasterRoleResourceReconcilerBuilder{
+		client:           client,
+		clusterOperation: clusterOperation,
+		image:            image,
+		zkConfigMapName:  clusterConfigSpec.ZookeeperConfigMapName,
 	}
-	return core.NewBaseRoleReconciler(scheme, instance, client, getRole(), roleLabels, dolphinInstance, masterHelper, pdb)
+	return common.NewRoleReconciler(client, roleInfo, clusterOperation, clusterConfigSpec, image,
+		*apiRoleSpec, apiRoleResourcesReconcilersBuilder)
 }
 
-func NewRoleMasterRequirements(scheme *runtime.Scheme, instance *dolphinv1alpha1.DolphinschedulerCluster,
-	roleLabels map[string]string, client client.Client) *RoleMasterRequirements {
-	return &RoleMasterRequirements{
-		scheme:          scheme,
-		instance:        instance,
-		client:          client,
-		groups:          maps.Keys(instance.Spec.Master.RoleGroups),
-		roleLabels:      roleLabels,
-		masterRoleSpec:  instance.Spec.Master,
-		masterGroupSpec: instance.Spec.Master.RoleGroups,
-	}
+var _ common.RoleResourceReconcilersBuilder = &MasterRoleResourceReconcilerBuilder{}
+
+type MasterRoleResourceReconcilerBuilder struct {
+	client           *client.Client
+	clusterOperation *commonsv1alpha1.ClusterOperationSpec
+	image            *opgoutil.Image
+	zkConfigMapName  string
 }
 
-var _ core.RoleReconcilerRequirements = &RoleMasterRequirements{}
+// Buile implements common.RoleReconcilerBuilder.
+// api server role has resources below:
+// - deployment
+// - service
+func (a *MasterRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Context, roleGroupInfo *reconciler.RoleGroupInfo,
+	mergedCfg *dolphinv1alpha1.RoleGroupSpec) []reconciler.Reconciler {
+	var reconcilers []reconciler.Reconciler
 
-type RoleMasterRequirements struct {
-	scheme          *runtime.Scheme
-	instance        *dolphinv1alpha1.DolphinschedulerCluster
-	client          client.Client
-	groups          []string
-	roleLabels      map[string]string
-	masterRoleSpec  *dolphinv1alpha1.MasterSpec
-	masterGroupSpec map[string]*dolphinv1alpha1.MasterRoleGroupSpec
-}
+	// Configmap
+	masterConfigMap := common.NewConfigMapReconciler(ctx, a.client, roleGroupInfo, MainContainerName, mergedCfg)
+	reconcilers = append(reconcilers, masterConfigMap)
 
-func (r *RoleMasterRequirements) MergeConfig() map[string]any {
-	var mergedCfg = make(map[string]any)
-	for groupName, cfg := range r.masterGroupSpec {
-		copiedRoleGroup := cfg.DeepCopy()
-		// Merge the role into the role group.
-		// if the role group has a config, and role group not has a config, will
-		// merge the role's config into the role group's config.
-		core.MergeObjects(copiedRoleGroup, r.masterRoleSpec, []string{"RoleGroups"})
+	//env from configmap
+	envFromConfigMap := common.NewEnvConfigMapReconciler(ctx, a.client, mergedCfg, roleGroupInfo)
+	reconcilers = append(reconcilers, envFromConfigMap)
 
-		// merge the role's config into the role group's config
-		if r.masterRoleSpec.Config != nil && copiedRoleGroup.Config != nil {
-			core.MergeObjects(copiedRoleGroup.Config, r.masterRoleSpec.Config, []string{})
-		}
-		mergedCfg[groupName] = copiedRoleGroup
-	}
-	return mergedCfg
-}
+	//statefulset
+	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo).WithCommandArgs().WithEnvFrom().
+		WithPorts(util.SortedMap{
+			dolphinv1alpha1.MasterPortName:       dolphinv1alpha1.MasterPort,
+			dolphinv1alpha1.MasterActualPortName: dolphinv1alpha1.MasterActualPort,
+		}).
+		WithEnvs(util.SortedMap{
+			"JAVA_OPTS":                                    "-Xms1g -Xmx1g -Xmn512m",
+			"MASTER_DISPATCH_TASK_NUM":                     "3",
+			"MASTER_EXEC_TASK_NUM":                         "20",
+			"MASTER_EXEC_THREADS":                          "100",
+			"MASTER_FAILOVER_INTERVAL":                     "10m",
+			"MASTER_HEARTBEAT_ERROR_THRESHOLD":             "5",
+			"MASTER_HOST_SELECTOR":                         "LowerWeight",
+			"MASTER_KILL_APPLICATION_WHEN_HANDLE_FAILOVER": "true",
+			"MASTER_MAX_HEARTBEAT_INTERVAL":                "10s",
+			"MASTER_SERVER_LOAD_PROTECTION_ENABLED":        "false",
+			"MASTER_SERVER_LOAD_PROTECTION_MAX_DISK_USAGE_PERCENTAGE_THRESHOLDS":          "0.7",
+			"MASTER_SERVER_LOAD_PROTECTION_MAX_JVM_CPU_USAGE_PERCENTAGE_THRESHOLDS":       "0.7",
+			"MASTER_SERVER_LOAD_PROTECTION_MAX_SYSTEM_CPU_USAGE_PERCENTAGE_THRESHOLDS":    "0.7",
+			"MASTER_SERVER_LOAD_PROTECTION_MAX_SYSTEM_MEMORY_USAGE_PERCENTAGE_THRESHOLDS": "0.7",
+			"MASTER_STATE_WHEEL_INTERVAL":                                                 "5s",
+			"MASTER_TASK_COMMIT_INTERVAL":                                                 "1s",
+			"MASTER_TASK_COMMIT_RETRYTIMES":                                               "5",
+		}).
+		WithReadinessAndLivenessProbe(dolphinv1alpha1.MasterActualPort).
+		WithCommandArgs().
+		WithVolumeMounts(nil)
+	sts := common.CreateStatefulSetReconciler(containerBuilder, ctx, a.client, a.image, a.clusterOperation, roleGroupInfo, mergedCfg,
+		a.zkConfigMapName, "")
+	reconcilers = append(reconcilers, sts)
 
-func (r *RoleMasterRequirements) RegisterResources(ctx context.Context) map[string][]core.ResourceReconciler {
-	var reconcilers = map[string][]core.ResourceReconciler{}
-	helper := core.RoleLabelHelper{}
-	for _, groupName := range r.groups {
-		value := core.GetRoleGroup(r.instance.Name, getRole(), groupName)
-		mergedCfg := value.(*dolphinv1alpha1.MasterRoleGroupSpec)
-		labels := helper.GroupLabels(r.roleLabels, groupName, mergedCfg.Config.NodeSelector)
-		cm := NewMasterConfigMap(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
-		statefulset := NewStatefulSet(ctx, r.scheme, r.instance, r.client, groupName, labels, mergedCfg, mergedCfg.Replicas)
-		svc := NewMasterServiceHeadless(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
-		logging := NewMasterLogging(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
-		groupReconcilers := []core.ResourceReconciler{cm, logging, statefulset, svc}
-		if mergedCfg.Config.PodDisruptionBudget != nil {
-			pdb := resource.NewReconcilePDB(r.client, r.scheme, r.instance, labels, groupName,
-				common.PdbCfg(mergedCfg.Config.PodDisruptionBudget))
-			groupReconcilers = append(groupReconcilers, pdb)
-		}
-		reconcilers[groupName] = groupReconcilers
-	}
+	//svc
+	svc := common.NewServiceReconciler(a.client, common.RoleGroupServiceName(roleGroupInfo), true, nil, map[string]int32{
+		dolphinv1alpha1.MasterPortName:       dolphinv1alpha1.MasterPort,
+		dolphinv1alpha1.MasterActualPortName: dolphinv1alpha1.MasterActualPort,
+	}, roleGroupInfo.GetLabels(), roleGroupInfo.GetAnnotations())
+	reconcilers = append(reconcilers, svc)
+
 	return reconcilers
 }

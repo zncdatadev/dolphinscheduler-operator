@@ -1,17 +1,8 @@
 apiVersion: zookeeper.zncdata.dev/v1alpha1
 kind: ZookeeperCluster
 metadata:
-  labels:
-    app.kubernetes.io/name: zookeepercluster
-    app.kubernetes.io/instance: zk
-    app.kubernetes.io/part-of: zookeeper-operator
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: zookeeper-operator
   name: test-zk
 spec:
-  image:
-    repository: docker.io/bitnami/zookeeper
-    tag: 3.9.1-debian-12-r15
   clusterConfig:
     listenerClass: cluster-internal
   server:
@@ -24,7 +15,7 @@ spec:
           limit: "400Mi"
     roleGroups:
       default:
-        replicas: 2
+        replicas: 1
         config:
           logging:
             zookeeperCluster:

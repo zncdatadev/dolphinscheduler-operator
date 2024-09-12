@@ -12,14 +12,9 @@ spec:
   clusterConfig:
     zookeeperDiscoveryZNode: "sample-dolphinscheduler-znode"
     database:
-      reference: database-sample
-    s3Bucket:
-      maxConnect: 10
-      pathStyle_access: true
-      reference: s3bucket-sample
+      databaseType: mysql
+      connectionString: xxx
   master:
-    image:
-      pullPolicy: IfNotPresent
     roleGroups:
       default:
         replicas: 1
@@ -31,8 +26,6 @@ spec:
             memory:
               limit: "3Gi"
   worker:
-    image:
-      pullPolicy: IfNotPresent
     roleGroups:
       default:
         replicas: 1
@@ -45,8 +38,6 @@ spec:
               limit: "3Gi"
 
   api:
-    image:
-      pullPolicy: IfNotPresent
     roleGroups:
       default:
         replicas: 1
@@ -69,8 +60,6 @@ spec:
               file:
                 level: WARN
   alerter:
-    image:
-      pullPolicy: IfNotPresent
     roleGroups:
       default:
         replicas: 1

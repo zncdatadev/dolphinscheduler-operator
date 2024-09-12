@@ -6,6 +6,10 @@ spec:
   steps:
   - try:
     - apply:
+        file: ../setup/database.yaml
+    - assert:
+        file: ../setup/database-assert.yaml
+    - apply:
         file: ../setup/olm.yaml
     - assert:
         file: ../setup/olm-assert.yaml
@@ -14,10 +18,6 @@ spec:
         file: ../setup/subs.yaml
     - assert:
         file: ../setup/subs-assert.yaml
-    - apply:
-        file: ../setup/listener.yaml
-    - assert:
-        file: ../setup/listener-assert.yaml
   - try:
     - apply:
         file: ../setup/zookeeper.yaml
@@ -25,17 +25,9 @@ spec:
         file: ../setup/zookeeper-assert.yaml
   - try:
     - apply:
-        file: ../setup/hdfs.yaml
+        file: dolphinscheduler.yaml
     - assert:
-        file: ../setup/hdfs-assert.yaml
-    cleanup:
-    - sleep:
-        duration: 20s
-  - try:
-    - apply:
-        file: hbase.yaml
-    - assert:
-        file: hbase-assert.yaml
+        file: dolphinscheduler-assert.yaml
     cleanup:
     - sleep:
         duration: 10s

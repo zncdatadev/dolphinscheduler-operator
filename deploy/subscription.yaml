@@ -8,4 +8,4 @@ spec:
   name: dolphinscheduler-operator
   source: dolphinscheduler-catalog
   sourceNamespace: olm
-  installPlanApproval: Automated
+  installPlanApproval: Automatic

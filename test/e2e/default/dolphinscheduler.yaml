@@ -2,32 +2,32 @@
 apiVersion: zookeeper.zncdata.dev/v1alpha1
 kind: ZookeeperZnode
 metadata:
-  labels:
-    app.kubernetes.io/name: zookeeperznode
-    app.kubernetes.io/instance: dolphinscheduler-znode
-    app.kubernetes.io/part-of: zookeeper-operator
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: zookeeper-operator
   name: test-znode
 spec:
   clusterRef:
     name: test-zk
 ---
+# postgresql credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgresql-credentials
+type: Opaque
+data:
+  username: dGVzdA==
+  password: dGVzdA==
+---
 apiVersion: dolphinscheduler.zncdata.dev/v1alpha1
 kind: DolphinschedulerCluster
 metadata:
-  labels:
-    app.kubernetes.io/name: dolphinschedulercluster
-    app.kubernetes.io/instance: dolphinschedulercluster-sample
-    app.kubernetes.io/part-of: dolphinscheduler-operator
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: dolphinscheduler-operator
   name: test-dolphinscheduler
 spec:
   clusterConfig:
-    zookeeperDiscoveryZNode: "test-znode"
+    zookeeperConfigMapName: test-znode
     database:
-      reference: database-sample
+      databaseType: postgresql
+      connectionString: jdbc:postgresql://postgresql:5432/dolphinscheduler
+      credentialsSecret: postgresql-credentials
   master:
     roleGroups:
       default:

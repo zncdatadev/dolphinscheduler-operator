@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
+	s3v1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/s3/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/status"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,9 +28,16 @@ const (
 	DolphinCommonPropertiesName = "common.properties"
 	DolphinConfigPath           = "/opt/dolphinscheduler/conf"
 	LogbackPropertiesFileName   = "logback-spring.xml"
+
+	DbInitImage              = "apache/dolphinscheduler-tools:3.2.1"
+	ConsoleConversionPattern = "%d{ISO8601} - %-5p [%t:%C{1}@%L] - %m%n"
 )
 
-const DbInitImage = "apache/dolphinscheduler-tools:3.2.1"
+const (
+	CommonPropertiesVolumeName = "common-properties"
+	LogbackVolumeName          = "logback"
+	WorkerDataVolumeName       = "worker-data"
+)
 
 const (
 	MasterPortName       = "port"
@@ -75,20 +84,26 @@ type DolphinschedulerClusterList struct {
 
 // DolphinschedulerClusterSpec defines the desired state of DolphinschedulerCluster
 type DolphinschedulerClusterSpec struct {
-	// +kubebuilder:validation:Required
-	ClusterConfigSpec *ClusterConfigSpec `json:"clusterConfig,omitempty"`
+	// +kubebuilder:validation:Optional
+	Image *ImageSpec `json:"image"`
+
+	// +kubebuilder:validation:Optional
+	ClusterConfig *ClusterConfigSpec `json:"clusterConfig,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	ClusterOperationSpec *commonsv1alpha1.ClusterOperationSpec `json:"clusterOperation,omitempty"`
 
 	// +kubebuilder:validation:Required
-	Master *MasterSpec `json:"master,omitempty"`
+	Master *RoleSpec `json:"master,omitempty"`
 
 	// +kubebuilder:validation:Required
-	Worker *WorkerSpec `json:"worker,omitempty"`
+	Worker *RoleSpec `json:"worker,omitempty"`
 
 	// +kubebuilder:validation:Required
-	Alerter *AlerterSpec `json:"alerter,omitempty"`
+	Alerter *RoleSpec `json:"alerter,omitempty"`
 
 	// +kubebuilder:validation:Required
-	Api *ApiSpec `json:"api,omitempty"`
+	Api *RoleSpec `json:"api,omitempty"`
 }
 
 type ClusterConfigSpec struct {
@@ -98,151 +113,113 @@ type ClusterConfigSpec struct {
 	ClusterDomain string `json:"clusterDomain,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default:="dolphinscheduler.org"
+	// +kubebuilder:default:="example.com"
 	IngressHost string `json:"ingressHost,omitempty"`
 
 	// +kubebuilder:validation:Required
-	ZookeeperDiscoveryZNode string `json:"zookeeperDiscoveryZNode,omitempty"`
+	ZookeeperConfigMapName string `json:"zookeeperConfigMapName,omitempty"`
 
-	// +kubebuilder:validation:Required
-	S3Bucket *S3BucketSpec `json:"s3Bucket,omitempty"`
+	// +kubebuilder:validation:Optional
+	S3 *s3v1alpha1.S3BucketSpec `json:"s3,omitempty"`
 
 	// +kubebuilder:validation:Required
 	Database *DatabaseSpec `json:"database,omitempty"`
 }
 
 type DatabaseSpec struct {
-	// +kubebuilder:validation=Optional
-	Reference string `json:"reference"`
+	// +kubebuilder:validation:Required
+	ConnectionString string `json:"connectionString,omitempty"`
 
-	// +kubebuilder:validation=Optional
-	Inline *DatabaseInlineSpec `json:"inline,omitempty"`
-}
-
-// DatabaseInlineSpec defines the inline database spec.
-type DatabaseInlineSpec struct {
-	// +kubebuilder:validation:Enum=mysql;postgres
-	// +kubebuilder:default="postgres"
-	Driver string `json:"driver,omitempty"`
-
-	// +kubebuilder:validation=Optional
-	// +kubebuilder:default="hive"
-	DatabaseName string `json:"databaseName,omitempty"`
-
-	// +kubebuilder:validation=Optional
-	// +kubebuilder:default="hive"
-	Username string `json:"username,omitempty"`
-
-	// +kubebuilder:validation=Optional
-	// +kubebuilder:default="hive"
-	Password string `json:"password,omitempty"`
-
-	// +kubebuilder:validation=Required
-	Host string `json:"host,omitempty"`
-
-	// +kubebuilder:validation=Optional
-	// +kubebuilder:default=5432
-	Port int32 `json:"port,omitempty"`
-}
-
-type S3BucketSpec struct {
-	// S3 bucket name with S3Bucket
-	// +kubebuilder:validation=Optional
-	Reference *string `json:"reference"`
-
-	// +kubebuilder:validation=Optional
-	Inline *S3BucketInlineSpec `json:"inline,omitempty"`
-
-	// +kubebuilder:validation=Optional
-	// +kubebuilder:default=20
-	MaxConnect int `json:"maxConnect"`
-
-	// +kubebuilder:validation=Optional
-	PathStyleAccess bool `json:"pathStyle_access"`
-}
-
-type S3BucketInlineSpec struct {
-
-	// +kubeBuilder:validation=Required
-	Bucket string `json:"bucket"`
-
-	// +kubebuilder:validation=Optional
-	// +kubebuilder:default="us-east-1"
-	Region string `json:"region,omitempty"`
-
-	// +kubebuilder:validation=Required
-	Endpoints string `json:"endpoints"`
-
-	// +kubebuilder:validation=Optional
-	// +kubebuilder:default=false
-	SSL bool `json:"ssl,omitempty"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default="h2"
+	DatabaseType string `json:"databaseType,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default:=false
-	PathStyle bool `json:"pathStyle,omitempty"`
-
-	// +kubebuilder:validation=Optional
-	AccessKey string `json:"accessKey,omitempty"`
-
-	// +kubebuilder:validation=Optional
-	SecretKey string `json:"secretKey,omitempty"`
+	CredentialsSecret string `json:"credentialsSecret,omitempty"`
 }
 
 type ContainerLoggingSpec struct {
 	// +kubebuilder:validation:Optional
-	Logging *LoggingConfigSpec `json:"logging,omitempty"`
+	Logging *commonsv1alpha1.LoggingConfigSpec `json:"logging,omitempty"`
 }
 
 type ConfigOverridesSpec struct {
 	CommonProperties map[string]string `json:"common.properties,omitempty"`
 	Envs             map[string]string `json:"envs,omitempty"`
 }
+type RoleSpec struct {
+
+	// +kubebuilder:validation:Optional
+	Config *ConfigSpec `json:"config,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	RoleGroups map[string]RoleGroupSpec `json:"roleGroups,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	PodDisruptionBudget *commonsv1alpha1.PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	CommandOverrides []string `json:"commandOverrides,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	ConfigOverrides *ConfigOverridesSpec `json:"configOverrides,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	EnvOverrides map[string]string `json:"envOverrides,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// PodOverrides *corev1.PodTemplateSpec `json:"podOverrides,omitempty"`
+}
+
+type RoleGroupSpec struct {
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=1
+	Replicas int32 `json:"replicas,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	Config *ConfigSpec `json:"config,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	PodDisruptionBudget *commonsv1alpha1.PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	CommandOverrides []string `json:"commandOverrides,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	ConfigOverrides *ConfigOverridesSpec `json:"configOverrides,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	EnvOverrides map[string]string `json:"envOverrides,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// PodOverrides *corev1.PodTemplateSpec `json:"podOverrides,omitempty"`
+}
 
 type ConfigSpec struct {
 	// +kubebuilder:validation:Optional
-	Resources *ResourcesSpec `json:"resources,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default:="cluster-internal"
-	ListenerClass string `json:"listenerClass,omitempty"`
+	Resources *commonsv1alpha1.ResourcesSpec `json:"resources,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	SecurityContext *corev1.PodSecurityContext `json:"securityContext"`
 
 	// +kubebuilder:validation:Optional
-	Affinity *corev1.Affinity `json:"affinity"`
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	Affinity *corev1.Affinity `json:"affinity"`
 
 	// +kubebuilder:validation:Optional
 	Tolerations []corev1.Toleration `json:"tolerations"`
 
 	// +kubebuilder:validation:Optional
-	PodDisruptionBudget *PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
+	PodDisruptionBudget *commonsv1alpha1.PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
 
+	// Use time.ParseDuration to parse the string
 	// +kubebuilder:validation:Optional
-	StorageClass string `json:"storageClass,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default="2Gi"
-	StorageSize string `json:"storageSize,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	ExtraEnv map[string]string `json:"extraEnv,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	ExtraSecret map[string]string `json:"extraSecret,omitempty"`
+	GracefulShutdownTimeout *string `json:"gracefulShutdownTimeout,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	Logging *ContainerLoggingSpec `json:"logging,omitempty"`
-}
-type PodDisruptionBudgetSpec struct {
-	// +kubebuilder:validation:Optional
-	MinAvailable int32 `json:"minAvailable,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	MaxUnavailable int32 `json:"maxUnavailable,omitempty"`
 }
 
 func init() {

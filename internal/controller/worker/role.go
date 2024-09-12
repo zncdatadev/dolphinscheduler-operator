@@ -5,88 +5,84 @@ import (
 
 	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdatadev/dolphinscheduler-operator/internal/common"
-	"github.com/zncdatadev/dolphinscheduler-operator/pkg/core"
-	"github.com/zncdatadev/dolphinscheduler-operator/pkg/resource"
-	"golang.org/x/exp/maps"
-	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/util"
+	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
+	"github.com/zncdatadev/operator-go/pkg/client"
+	"github.com/zncdatadev/operator-go/pkg/reconciler"
+	opgoutil "github.com/zncdatadev/operator-go/pkg/util"
 )
 
 func NewWorkerRole(
-	scheme *runtime.Scheme,
-	instance *dolphinv1alpha1.DolphinschedulerCluster,
-	client client.Client) *core.BaseRoleReconciler[*dolphinv1alpha1.DolphinschedulerCluster] {
-	dolphinInstance := &common.DolphinSchedulerClusterInstance{Instance: instance}
-	LabelHelper := core.RoleLabelHelper{}
-	roleLabels := LabelHelper.RoleLabels(instance.GetName(), getRole())
-	workerHelper := NewRoleWorkerRequirements(scheme, instance, roleLabels, client)
-	var pdb core.ResourceReconciler
-	if instance.Spec.Alerter.PodDisruptionBudget != nil {
-		pdb = resource.NewReconcilePDB(client, scheme, instance, roleLabels, string(getRole()), common.PdbCfg(instance.Spec.Alerter.PodDisruptionBudget))
+	client *client.Client,
+	image *opgoutil.Image,
+	clusterConfigSpec *dolphinv1alpha1.ClusterConfigSpec,
+	clusterOperation *commonsv1alpha1.ClusterOperationSpec,
+	apiRoleSpec *dolphinv1alpha1.RoleSpec,
+	roleInfo reconciler.RoleInfo) *common.RoleReconciler {
+
+	apiRoleResourcesReconcilersBuilder := &WorkerRoleResourceReconcilerBuilder{
+		client:           client,
+		clusterOperation: clusterOperation,
+		image:            image,
+		zkConfigMapName:  clusterConfigSpec.ZookeeperConfigMapName,
 	}
-	return core.NewBaseRoleReconciler(scheme, instance, client, getRole(), roleLabels, dolphinInstance, workerHelper, pdb)
+	return common.NewRoleReconciler(client, roleInfo, clusterOperation, clusterConfigSpec, image,
+		*apiRoleSpec, apiRoleResourcesReconcilersBuilder)
 }
 
-func NewRoleWorkerRequirements(scheme *runtime.Scheme, instance *dolphinv1alpha1.DolphinschedulerCluster,
-	roleLabels map[string]string, client client.Client) *RoleWorkerRequirements {
-	return &RoleWorkerRequirements{
-		scheme:          scheme,
-		instance:        instance,
-		client:          client,
-		groups:          maps.Keys(instance.Spec.Worker.RoleGroups),
-		roleLabels:      roleLabels,
-		workerRoleSpec:  instance.Spec.Worker,
-		workerGroupSpec: instance.Spec.Worker.RoleGroups,
-	}
+var _ common.RoleResourceReconcilersBuilder = &WorkerRoleResourceReconcilerBuilder{}
+
+type WorkerRoleResourceReconcilerBuilder struct {
+	client           *client.Client
+	clusterOperation *commonsv1alpha1.ClusterOperationSpec
+	image            *opgoutil.Image
+	zkConfigMapName  string
 }
 
-var _ core.RoleReconcilerRequirements = &RoleWorkerRequirements{}
+// Buile implements common.RoleReconcilerBuilder.
+// api server role has resources below:
+// - deployment
+// - service
+func (a *WorkerRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Context, roleGroupInfo *reconciler.RoleGroupInfo,
+	mergedCfg *dolphinv1alpha1.RoleGroupSpec) []reconciler.Reconciler {
+	var reconcilers []reconciler.Reconciler
 
-type RoleWorkerRequirements struct {
-	scheme          *runtime.Scheme
-	instance        *dolphinv1alpha1.DolphinschedulerCluster
-	client          client.Client
-	groups          []string
-	roleLabels      map[string]string
-	workerRoleSpec  *dolphinv1alpha1.WorkerSpec
-	workerGroupSpec map[string]*dolphinv1alpha1.WorkerRoleGroupSpec
-}
+	//common.properties, logback.xml Configmap
+	workerConfigMap := common.NewConfigMapReconciler(ctx, a.client, roleGroupInfo, MainContainerName, mergedCfg)
+	reconcilers = append(reconcilers, workerConfigMap)
 
-func (r *RoleWorkerRequirements) MergeConfig() map[string]any {
-	var mergedCfg = make(map[string]any)
-	for groupName, cfg := range r.workerGroupSpec {
-		copiedRoleGroup := cfg.DeepCopy()
-		// Merge the role into the role group.
-		// if the role group has a config, and role group not has a config, will
-		// merge the role's config into the role group's config.
-		core.MergeObjects(copiedRoleGroup, r.workerRoleSpec, []string{"RoleGroups"})
+	//statefulset
+	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo).WithCommandArgs().WithEnvFrom().
+		WithPorts(util.SortedMap{
+			dolphinv1alpha1.WorkerPortName:       dolphinv1alpha1.WorkerPort,
+			dolphinv1alpha1.WorkerActualPortName: dolphinv1alpha1.WorkerActualPort,
+		}).
+		WithEnvs(util.SortedMap{
+			"DEFAULT_TENANT_ENABLED":                "false",
+			"WORKER_EXEC_THREADS":                   "100",
+			"WORKER_HOST_WEIGHT":                    "100",
+			"WORKER_MAX_HEARTBEAT_INTERVAL":         "10s",
+			"WORKER_SERVER_LOAD_PROTECTION_ENABLED": "false",
+			"WORKER_SERVER_LOAD_PROTECTION_MAX_DISK_USAGE_PERCENTAGE_THRESHOLDS":          "0.7",
+			"WORKER_SERVER_LOAD_PROTECTION_MAX_JVM_CPU_USAGE_PERCENTAGE_THRESHOLDS":       "0.7",
+			"WORKER_SERVER_LOAD_PROTECTION_MAX_SYSTEM_CPU_USAGE_PERCENTAGE_THRESHOLDS":    "0.7",
+			"WORKER_SERVER_LOAD_PROTECTION_MAX_SYSTEM_MEMORY_USAGE_PERCENTAGE_THRESHOLDS": "0.7",
+			"WORKER_TENANT_CONFIG_AUTO_CREATE_TENANT_ENABLED":                             "true",
+			"WORKER_TENANT_CONFIG_DISTRIBUTED_TENANT":                                     "false",
+		}).
+		WithReadinessAndLivenessProbe(dolphinv1alpha1.WorkerActualPort).
+		WithCommandArgs().
+		WithVolumeMounts(nil)
+	dep := common.CreateStatefulSetReconciler(containerBuilder, ctx, a.client, a.image, a.clusterOperation, roleGroupInfo, mergedCfg,
+		a.zkConfigMapName, dolphinv1alpha1.WorkerDataVolumeName)
+	reconcilers = append(reconcilers, dep)
 
-		// merge the role's config into the role group's config
-		if r.workerRoleSpec.Config != nil && copiedRoleGroup.Config != nil {
-			core.MergeObjects(copiedRoleGroup.Config, r.workerRoleSpec.Config, []string{})
-		}
-		mergedCfg[groupName] = copiedRoleGroup
-	}
-	return mergedCfg
-}
+	//svc
+	svc := common.NewServiceReconciler(a.client, common.RoleGroupServiceName(roleGroupInfo), true, nil, map[string]int32{
+		dolphinv1alpha1.WorkerPortName:       dolphinv1alpha1.WorkerPort,
+		dolphinv1alpha1.WorkerActualPortName: dolphinv1alpha1.WorkerActualPort,
+	}, roleGroupInfo.GetLabels(), roleGroupInfo.GetAnnotations())
+	reconcilers = append(reconcilers, svc)
 
-func (r *RoleWorkerRequirements) RegisterResources(ctx context.Context) map[string][]core.ResourceReconciler {
-	var reconcilers = map[string][]core.ResourceReconciler{}
-	helper := core.RoleLabelHelper{}
-	for _, groupName := range r.groups {
-		value := core.GetRoleGroup(r.instance.Name, getRole(), groupName)
-		mergedCfg := value.(*dolphinv1alpha1.WorkerRoleGroupSpec)
-		labels := helper.GroupLabels(r.roleLabels, groupName, mergedCfg.Config.NodeSelector)
-		logging := NewWorkerLogging(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
-		statefulset := NewStatefulSet(ctx, r.scheme, r.instance, r.client, groupName, labels, mergedCfg, mergedCfg.Replicas)
-		svc := NewWorkerServiceHeadless(r.scheme, r.instance, r.client, groupName, labels, mergedCfg)
-		groupReconcilers := []core.ResourceReconciler{logging, statefulset, svc}
-		if mergedCfg.Config.PodDisruptionBudget != nil {
-			pdb := resource.NewReconcilePDB(r.client, r.scheme, r.instance, labels, groupName,
-				common.PdbCfg(mergedCfg.Config.PodDisruptionBudget))
-			groupReconcilers = append(groupReconcilers, pdb)
-		}
-		reconcilers[groupName] = groupReconcilers
-	}
 	return reconcilers
 }
