@@ -25,9 +25,23 @@ Dockerfile.cross
 *.swo
 *~
 
-# bundle
 bundle.Dockerfile
 bundle
 
-catalog
+bundle*
+
+kind-kubeconfig*
+
 catalog.Dockerfile
+catalog
+
+*-local.yaml
+
+# test
+ginkgo.report
+cover.out
+*__debug*
+**/coverage
+
+# ai code local
+.codiumai.toml

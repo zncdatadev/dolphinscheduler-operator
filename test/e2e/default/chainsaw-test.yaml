@@ -1,0 +1,33 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: default
+spec:
+  steps:
+  - try:
+    - apply:
+        file: ../setup/database.yaml
+    - assert:
+        file: ../setup/database-assert.yaml
+    - apply:
+        file: ../setup/olm.yaml
+    - assert:
+        file: ../setup/olm-assert.yaml
+  - try:
+    - apply:
+        file: ../setup/subs.yaml
+    - assert:
+        file: ../setup/subs-assert.yaml
+  - try:
+    - apply:
+        file: ../setup/zookeeper.yaml
+    - assert:
+        file: ../setup/zookeeper-assert.yaml
+  - try:
+    - apply:
+        file: dolphinscheduler.yaml
+    - assert:
+        file: dolphinscheduler-assert.yaml
+    cleanup:
+    - sleep:
+        duration: 10s

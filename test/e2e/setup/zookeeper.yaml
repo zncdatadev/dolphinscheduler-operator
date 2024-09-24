@@ -1,0 +1,28 @@
+apiVersion: zookeeper.zncdata.dev/v1alpha1
+kind: ZookeeperCluster
+metadata:
+  name: test-zk
+spec:
+  clusterConfig:
+    listenerClass: cluster-internal
+  server:
+    config:
+      resources:
+        cpu:
+          min: "100m"
+          max: "200m"
+        memory:
+          limit: "400Mi"
+    roleGroups:
+      default:
+        replicas: 1
+        config:
+          logging:
+            zookeeperCluster:
+              loggers:
+                test:
+                  level: DEBUG
+              console:
+                level: WARN
+              file:
+                level: INFO

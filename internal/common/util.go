@@ -1,31 +1,60 @@
 package common
 
 import (
-	"context"
 	"fmt"
-	"strconv"
+	"math"
+	"path"
 	"strings"
 
-	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
-	"github.com/zncdatadev/dolphinscheduler-operator/pkg/core"
-	"github.com/zncdatadev/dolphinscheduler-operator/pkg/resource"
 	"github.com/zncdatadev/dolphinscheduler-operator/pkg/util"
-	"golang.org/x/exp/maps"
-	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"github.com/zncdatadev/operator-go/pkg/builder"
+	"github.com/zncdatadev/operator-go/pkg/constants"
+	"github.com/zncdatadev/operator-go/pkg/reconciler"
 )
 
-const Master core.Role = "master"
-const Worker core.Role = "worker"
-const Alerter core.Role = "alerter"
-const Api core.Role = "api"
+const Master util.Role = "master"
+const Worker util.Role = "worker"
+const Alerter util.Role = "alert"
+const Api util.Role = "api"
 
-func ConfigConfigMapName(instanceName string, groupName string) string {
-	return util.NewResourceNameGenerator(instanceName, "", groupName).GenerateResourceName("config")
+func ClusterServiceName(instanceName string) string {
+	return instanceName
 }
 
-func EnvsConfigMapName(instanceName string, groupName string) string {
-	return util.NewResourceNameGenerator(instanceName, "", groupName).GenerateResourceName("envs")
+func StatefulsetName(roleGroupInfo *reconciler.RoleGroupInfo) string {
+	return roleGroupInfo.GetFullName()
+}
+
+func DeploymentName(roleGroupInfo *reconciler.RoleGroupInfo) string {
+	return roleGroupInfo.GetFullName()
+}
+
+func RoleGroupConfigMapName(roleGroupInfo *reconciler.RoleGroupInfo) string {
+	return roleGroupInfo.GetFullName()
+}
+
+func RoleGroupEnvsConfigMapName(instanceName string) string {
+	return instanceName + "-envs"
+}
+
+func RoleGroupServiceName(roleGroupInfo *reconciler.RoleGroupInfo) string {
+	return roleGroupInfo.GetFullName()
+}
+
+func ServiceAccountName(instanceName string) string {
+	return builder.ServiceAccountName(instanceName)
+}
+
+func RoleName(instanceName string) string {
+	return builder.RoleName(instanceName)
+}
+
+func RoleBindName(instanceName string) string {
+	return builder.RoleBindingName(instanceName)
+}
+
+func PodFQDN(podName, svcName, namespace string) string {
+	return fmt.Sprintf("%s.%s.%s.svc.cluster.local", podName, svcName, namespace)
 }
 
 func CreateNetworkUrl(podName string, svcName, namespace, clusterDomain string, port int32) string {
@@ -50,10 +79,6 @@ func CreatePodNamesByReplicas(replicas int32, statefulResourceName string) []str
 	return podNames
 }
 
-func CreateServiceAccountName(instanceName string) string {
-	return util.NewResourceNameGeneratorOneRole(instanceName, "").GenerateResourceName("sa")
-}
-
 func CreateKvContentByReplicas(replicas int32, keyTemplate string, valueTemplate string) [][2]string {
 	var res [][2]string
 	for i := int32(0); i < replicas; i++ {
@@ -69,155 +94,43 @@ func CreateKvContentByReplicas(replicas int32, keyTemplate string, valueTemplate
 	return res
 }
 
-func K8sEnvRef(envName string) string {
-	return fmt.Sprintf("$(%s)", envName)
+func RoleBinBaseDir(role util.Role) string {
+	// return fmt.Sprintf("%s/dolphinscheduler/", constants.KubedoopRoot)
+	return path.Join(constants.KubedoopRoot, "dolphinscheduler")
 }
 
-func LinuxEnvRef(envName string) string {
-	return fmt.Sprintf("$%s", envName)
+func RoleServer(role util.Role) string {
+	return fmt.Sprintf("%s-server", string(role))
 }
 
-func TransformApiLogger(logging *dolphinv1alpha1.LoggingConfigSpec) *resource.TextTemplateLoggingDataBuilder {
-	var customLoggers []resource.LoggerLevel
-	for logger, lvl := range logging.Loggers {
-		customLoggers = append(customLoggers, resource.LoggerLevel{
-			Logger: logger,
-			Level:  lvl.Level,
-		})
-	}
-	return &resource.TextTemplateLoggingDataBuilder{
-		Loggers: customLoggers,
-		Console: &resource.LoggingAppender{
-			Level: logging.Console.Level,
-		},
-		File: &resource.LoggingAppender{Level: logging.File.Level},
-	}
+func RoleConfigPath(role util.Role, configFileName string) string {
+	return path.Join(RoleBinBaseDir(role), RoleServer(role), "conf", configFileName)
 }
 
-func PdbCfg(pdbSpec *dolphinv1alpha1.PodDisruptionBudgetSpec) *core.PdbConfig {
-	if pdbSpec == nil {
-		return nil
-	}
-	return &core.PdbConfig{
-		MaxUnavailable: pdbSpec.MaxUnavailable,
-		MinAvailable:   pdbSpec.MinAvailable,
-	}
-}
-func ExtractDataBaseReference(dbSpec *dolphinv1alpha1.DatabaseSpec, ctx context.Context, client client.Client,
-	namespace string) (*resource.DatabaseConfiguration, *resource.DatabaseParams) {
-	db := resource.DatabaseConfiguration{
-		DbReference:    &dbSpec.Reference,
-		ResourceClient: core.NewResourceClient(ctx, client, namespace),
-	}
-	if inlineDb := dbSpec.Inline; inlineDb != nil {
-		db.DbInline = resource.NewDatabaseParams(
-			inlineDb.Driver,
-			inlineDb.Username,
-			inlineDb.Password,
-			inlineDb.Host,
-			strconv.Itoa(int(inlineDb.Port)),
-			inlineDb.DatabaseName)
-	}
-	params, err := db.GetDatabaseParams()
-	if err != nil {
-		panic(err)
-	}
-	return &db, params
+func RoleExecArgs(role string) string {
+	return fmt.Sprintf("%s/bin/start.sh &", RoleServer(util.Role(role)))
 }
 
-func MakeDataBaseEnvs(params *resource.DatabaseParams) []corev1.EnvVar {
-	uri := resource.ToUri(params)
-	return []corev1.EnvVar{
-		{
-			Name:  "DATABASE",
-			Value: string(params.DbType),
-		},
-		{
-			Name:  "SPRING_DATASOURCE_URL",
-			Value: uri,
-		},
-		{
-			Name:  "SPRING_DATASOURCE_USERNAME",
-			Value: params.Username,
-		},
-		{
-			Name:  "SPRING_DATASOURCE_PASSWORD",
-			Value: params.Password,
-		},
-		{
-			Name:  "SPRING_DATASOURCE_DRIVER-CLASS-NAME",
-			Value: params.Driver,
-		},
-	}
+func FixExecPermission(role string) string {
+	return fmt.Sprintf("chmod +x %s/bin/start.sh", RoleServer(util.Role(role)))
 }
 
-var _ core.InstanceAttributes = &DolphinSchedulerClusterInstance{}
-
-type DolphinSchedulerClusterInstance struct {
-	Instance *dolphinv1alpha1.DolphinschedulerCluster
-}
-
-func (k *DolphinSchedulerClusterInstance) GetRoleConfig(role core.Role) *core.RoleConfiguration {
-	switch role {
-	case Master:
-		masterSpec := k.Instance.Spec.Master
-		roleGetter := &DolphinSchedulerRoleGetter{masterSpec.Config}
-		groups := maps.Keys(masterSpec.RoleGroups)
-		return k.transformRoleSpec(roleGetter, groups, masterSpec.PodDisruptionBudget)
-	case Worker:
-		workerSpec := k.Instance.Spec.Worker
-		roleGetter := &DolphinSchedulerRoleGetter{workerSpec.Config}
-		groups := maps.Keys(workerSpec.RoleGroups)
-		return k.transformRoleSpec(roleGetter, groups, workerSpec.PodDisruptionBudget)
-	case Alerter:
-		alerterSpec := k.Instance.Spec.Alerter
-		roleGetter := &DolphinSchedulerRoleGetter{alerterSpec.Config}
-		groups := maps.Keys(alerterSpec.RoleGroups)
-		return k.transformRoleSpec(roleGetter, groups, alerterSpec.PodDisruptionBudget)
-	case Api:
-		apiSpec := k.Instance.Spec.Api
-		roleGetter := &DolphinSchedulerRoleGetter{apiSpec.Config}
-		groups := maps.Keys(apiSpec.RoleGroups)
-		return k.transformRoleSpec(roleGetter, groups, apiSpec.PodDisruptionBudget)
-	default:
-		panic(fmt.Sprintf("unknown role: %s", role))
-	}
-}
-
-// masterSpec to RoleConfiguration
-func (k *DolphinSchedulerClusterInstance) transformRoleSpec(
-	roleConfigGetter core.RoleConfigGetter,
-	groups []string,
-	rolePdbSpec *dolphinv1alpha1.PodDisruptionBudgetSpec,
-) *core.RoleConfiguration {
-	var pdbCfg *core.PdbConfig
-	if rolePdbSpec != nil {
-		pdbCfg = &core.PdbConfig{
-			MinAvailable:   rolePdbSpec.MinAvailable,
-			MaxUnavailable: rolePdbSpec.MinAvailable,
+func ToContainerPortInt32(n interface{}) (int32Port int32, err error) {
+	switch v := n.(type) {
+	case int:
+		return int32(v), nil
+	case int8:
+		return int32(v), nil
+	case int16:
+		return int32(v), nil
+	case int32:
+		return v, nil
+	case int64:
+		if v > math.MaxInt32 || v < math.MinInt32 {
+			return 0, fmt.Errorf("int64 value %d is out of int32 range", v)
 		}
+		return int32(v), nil
+	default:
+		return 0, fmt.Errorf("unexpected type %T to convert to int32", v)
 	}
-	return core.NewRoleConfiguration(roleConfigGetter.Config(), groups, pdbCfg)
-}
-
-func (k *DolphinSchedulerClusterInstance) GetClusterConfig() any {
-	return k.Instance.Spec.ClusterConfigSpec
-}
-
-func (k *DolphinSchedulerClusterInstance) GetNamespace() string {
-	return k.Instance.GetNamespace()
-}
-
-func (k *DolphinSchedulerClusterInstance) GetInstanceName() string {
-	return k.Instance.GetName()
-}
-
-var _ core.RoleConfigGetter = &DolphinSchedulerRoleGetter{}
-
-type DolphinSchedulerRoleGetter struct {
-	roleSpec *dolphinv1alpha1.ConfigSpec
-}
-
-func (d DolphinSchedulerRoleGetter) Config() any {
-	return d.roleSpec
 }
