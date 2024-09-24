@@ -3,7 +3,7 @@ kind: Configuration
 metadata:
   name: custom-config
 spec:
-  namespace: test
+  # namespace: test
   timeouts:
     apply: 300s
     assert: 300s
@@ -11,8 +11,8 @@ spec:
     delete: 120s
     error: 180s
     exec: 300s
-  # skipDelete: false
-  skipDelete: true
+  skipDelete: false
+  # skipDelete: true
   failFast: true
   forceTerminationGracePeriod: 10s
   parallel: 1
