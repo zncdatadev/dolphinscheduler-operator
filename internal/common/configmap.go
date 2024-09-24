@@ -29,10 +29,13 @@ func NewConfigMapReconciler(
 ) reconciler.ResourceReconciler[*builder.ConfigMapBuilder] {
 	builder := builder.NewConfigMapBuilder(client, RoleGroupConfigMapName(roleGroupInf), roleGroupInf.GetLabels(), roleGroupInf.GetAnnotations())
 	var loggingSpec *loggingv1alpha1.LoggingConfigSpec
-	if mergedConfig.Config != nil && mergedConfig.Config.Logging != nil && mergedConfig.Config.Logging.Logging != nil {
-		loggingSpec = mergedConfig.Config.Logging.Logging
+	var containerLoggingSpec *dolphinv1alpha1.ContainerLoggingSpec
+	if mergedConfig.Config != nil && mergedConfig.Config.Logging != nil {
+		containerLoggingSpec = mergedConfig.Config.Logging
+		if mergedConfig.Config.Logging.Logging != nil {
+			loggingSpec = mergedConfig.Config.Logging.Logging
+		}
 	}
-
 	var s3Spec *s3v1alpha1.S3BucketSpec
 	owner := client.GetOwnerReference()
 	cr := owner.(*dolphinv1alpha1.DolphinschedulerCluster)
@@ -52,6 +55,17 @@ func NewConfigMapReconciler(
 			container:   contaienr,
 		},
 	})
+
+	if IsVectorEnable(containerLoggingSpec) {
+		ExtendConfigMapDataByVector(ctx, VectorConfigParams{
+			Client:        client.GetCtrlClient(),
+			ClusterConfig: cr.Spec.ClusterConfig,
+			Namespace:     client.GetOwnerNamespace(),
+			InstanceName:  client.GetOwnerName(),
+			Role:          roleGroupInf.GetRoleName(),
+			GroupName:     roleGroupInf.GetGroupName(),
+		}, data)
+	}
 	builder.AddData(data)
 	return reconciler.NewGenericResourceReconciler(client, RoleGroupConfigMapName(roleGroupInf), builder)
 }

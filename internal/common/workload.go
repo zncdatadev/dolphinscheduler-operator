@@ -6,6 +6,7 @@ import (
 	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/client"
+	"github.com/zncdatadev/operator-go/pkg/productlogging"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	"github.com/zncdatadev/operator-go/pkg/util"
 	corev1 "k8s.io/api/core/v1"
@@ -78,6 +79,7 @@ func (b *DeploymentBuilder) Build(ctx context.Context) (ctrlclient.Object, error
 	if err != nil {
 		return nil, err
 	}
+	b.VectorDecorator(obj, b.GetImage()) // vector
 
 	obj.Spec.Template.Spec.ServiceAccountName = b.serviceAccount()
 	return obj, nil
@@ -104,6 +106,7 @@ func (b *StatefulSetBuilder) Build(ctx context.Context) (ctrlclient.Object, erro
 	if len(b.pvcs) > 0 {
 		obj.Spec.VolumeClaimTemplates = b.pvcs
 	}
+	b.VectorDecorator(obj, b.GetImage()) // vector
 	return obj, nil
 }
 
@@ -116,11 +119,30 @@ type WorkloadBuilder struct {
 	pvcs []corev1.PersistentVolumeClaim
 }
 
+// decoraate vector
+func (w *WorkloadBuilder) VectorDecorator(workloadObject ctrlclient.Object, image *util.Image) {
+	if IsVectorEnable(w.MergedCfg.Config.Logging) {
+		ExtendWorkloadByVector(image, workloadObject, RoleGroupConfigMapName(w.RoleGroupInf))
+	}
+}
+
 // with volumes
 func (w *WorkloadBuilder) volumes() []corev1.Volume {
 	volumes := []corev1.Volume{
 		{
-			Name: dolphinv1alpha1.CommonPropertiesVolumeName,
+			Name: dolphinv1alpha1.LoggingVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{
+					SizeLimit: func() *resource.Quantity {
+						q := resource.MustParse(dolphinv1alpha1.MaxLogFileSize)
+						size := productlogging.CalculateLogVolumeSizeLimit([]resource.Quantity{q})
+						return &size
+					}(),
+				},
+			},
+		},
+		{
+			Name: dolphinv1alpha1.ConfigVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
 					LocalObjectReference: corev1.LocalObjectReference{

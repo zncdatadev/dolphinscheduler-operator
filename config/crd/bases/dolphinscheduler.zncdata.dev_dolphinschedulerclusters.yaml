@@ -986,6 +986,9 @@ spec:
                         type: string
                       logging:
                         properties:
+                          enableVectorAgent:
+                            default: false
+                            type: boolean
                           logging:
                             properties:
                               console:
@@ -2355,6 +2358,9 @@ spec:
                               type: string
                             logging:
                               properties:
+                                enableVectorAgent:
+                                  default: false
+                                  type: boolean
                                 logging:
                                   properties:
                                     console:
@@ -3719,6 +3725,9 @@ spec:
                         type: string
                       logging:
                         properties:
+                          enableVectorAgent:
+                            default: false
+                            type: boolean
                           logging:
                             properties:
                               console:
@@ -5088,6 +5097,9 @@ spec:
                               type: string
                             logging:
                               properties:
+                                enableVectorAgent:
+                                  default: false
+                                  type: boolean
                                 logging:
                                   properties:
                                     console:
@@ -5612,6 +5624,8 @@ spec:
                     required:
                     - bucketName
                     type: object
+                  vectorAggregatorConfigMapName:
+                    type: string
                   zookeeperConfigMapName:
                     type: string
                 required:
@@ -6594,6 +6608,9 @@ spec:
                         type: string
                       logging:
                         properties:
+                          enableVectorAgent:
+                            default: false
+                            type: boolean
                           logging:
                             properties:
                               console:
@@ -7963,6 +7980,9 @@ spec:
                               type: string
                             logging:
                               properties:
+                                enableVectorAgent:
+                                  default: false
+                                  type: boolean
                                 logging:
                                   properties:
                                     console:
@@ -9327,6 +9347,9 @@ spec:
                         type: string
                       logging:
                         properties:
+                          enableVectorAgent:
+                            default: false
+                            type: boolean
                           logging:
                             properties:
                               console:
@@ -10696,6 +10719,9 @@ spec:
                               type: string
                             logging:
                               properties:
+                                enableVectorAgent:
+                                  default: false
+                                  type: boolean
                                 logging:
                                   properties:
                                     console:
