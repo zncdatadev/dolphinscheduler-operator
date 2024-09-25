@@ -30,13 +30,15 @@ const (
 	LogbackPropertiesFileName   = "logback-spring.xml"
 
 	DbInitImage              = "apache/dolphinscheduler-tools:3.2.1"
+	MaxLogFileSize           = "10Mi"
 	ConsoleConversionPattern = "%d{ISO8601} - %-5p [%t:%C{1}@%L] - %m%n"
 )
 
 const (
-	CommonPropertiesVolumeName = "common-properties"
-	LogbackVolumeName          = "logback"
-	WorkerDataVolumeName       = "worker-data"
+	ConfigVolumeName     = "config"
+	LogbackVolumeName    = "logback"
+	WorkerDataVolumeName = "worker-data"
+	LoggingVolumeName    = "log"
 )
 
 const (
@@ -116,6 +118,9 @@ type ClusterConfigSpec struct {
 	// +kubebuilder:default:="example.com"
 	IngressHost string `json:"ingressHost,omitempty"`
 
+	// +kubebuilder:validation:Optional
+	VectorAggregatorConfigMapName string `json:"vectorAggregatorConfigMapName,omitempty"`
+
 	// +kubebuilder:validation:Required
 	ZookeeperConfigMapName string `json:"zookeeperConfigMapName,omitempty"`
 
@@ -139,6 +144,9 @@ type DatabaseSpec struct {
 }
 
 type ContainerLoggingSpec struct {
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	EnableVectorAgent bool `json:"enableVectorAgent,omitempty"`
 	// +kubebuilder:validation:Optional
 	Logging *commonsv1alpha1.LoggingConfigSpec `json:"logging,omitempty"`
 }

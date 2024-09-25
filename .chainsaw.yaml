@@ -15,4 +15,4 @@ spec:
   # skipDelete: true
   failFast: true
   forceTerminationGracePeriod: 10s
-  parallel: 1
+  parallel: 2

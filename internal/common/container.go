@@ -172,7 +172,7 @@ func (c *ContainerBuilder) WithReadinessAndLivenessProbe(port int) *ContainerBui
 func (c *ContainerBuilder) WithVolumeMounts(vmMap util.SortedMap) *ContainerBuilder {
 	var volumeMounts []corev1.VolumeMount = []corev1.VolumeMount{
 		{
-			Name:      dolphinv1alpha1.CommonPropertiesVolumeName,
+			Name:      dolphinv1alpha1.ConfigVolumeName,
 			MountPath: RoleConfigPath(util.Role(c.RoleGroupInfo.RoleName), dolphinv1alpha1.DolphinCommonPropertiesName),
 			SubPath:   dolphinv1alpha1.DolphinCommonPropertiesName,
 		},
