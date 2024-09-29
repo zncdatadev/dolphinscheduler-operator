@@ -1,0 +1,37 @@
+apiVersion: zookeeper.zncdata.dev/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  name: test-znode
+spec:
+  clusterRef:
+    name: test-zk
+---
+apiVersion: dolphinscheduler.zncdata.dev/v1alpha1
+kind: DolphinschedulerCluster
+metadata:
+  name: test-dolphinscheduler
+spec:
+  clusterConfig:
+    zookeeperConfigMapName: test-znode
+    authentication:
+    - authenticationClass: ldap
+    database:
+      databaseType: postgresql
+      connectionString: jdbc:postgresql://postgresql:5432/dolphinscheduler
+      credentialsSecret: postgresql-credentials
+  master:
+    roleGroups:
+      default:
+        replicas: 1
+  worker:
+    roleGroups:
+      default:
+        replicas: 1
+  api:
+    roleGroups:
+      default:
+        replicas: 1
+  alerter:
+    roleGroups:
+      default:
+        replicas: 1

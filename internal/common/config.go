@@ -2,16 +2,21 @@ package common
 
 import (
 	"maps"
+	"reflect"
 	"strconv"
 	"time"
 
+	"emperror.dev/errors"
 	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdatadev/dolphinscheduler-operator/pkg/config"
 	"github.com/zncdatadev/dolphinscheduler-operator/pkg/util"
 	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
+
+var configLogger = ctrl.Log.WithName("config-logger")
 
 const (
 	DefaultServerGrace = 120
@@ -69,6 +74,7 @@ func DefaultConfig(role util.Role) *DolphinSchedulerConfig {
 }
 
 type DolphinSchedulerConfig struct {
+	role      util.Role
 	resources *commonsv1alpha1.ResourcesSpec
 	// Logging Logging `json:"logging,omitempty"`
 	common *GeneralNodeConfig
@@ -111,7 +117,7 @@ func (c *DolphinSchedulerConfig) ComputeEnv() (map[string]string, error) {
 }
 
 // ComputeFile implements config.Configuration.
-func (c *DolphinSchedulerConfig) ComputeFile() (map[string]map[string]string, error) {
+func (c *DolphinSchedulerConfig) ComputeFile() (map[string]interface{}, error) {
 	commonProperties := map[string]string{
 		"alert.rpc.port":                               "50052",
 		"appId.collect":                                "log",
@@ -148,9 +154,22 @@ func (c *DolphinSchedulerConfig) ComputeFile() (map[string]map[string]string, er
 		"yarn.job.history.status.address":              "http://ds1:19888/ws/v1/history/mapreduce/jobs/%s",
 		"yarn.resourcemanager.ha.rm.ids":               "192.168.xx.xx,192.168.xx.xx",
 	}
-	return map[string]map[string]string{
+	ApiServerDefaultaApplicationYaml := `security:
+  authentication:
+    type: PASSWORD
+    oauth2:
+      enable: false
+      provider:
+	`
+	configs := map[string]interface{}{
 		dolphinv1alpha1.DolphinCommonPropertiesName: commonProperties,
-	}, nil
+	}
+	if c.role == Api {
+		maps.Copy(configs, map[string]interface{}{
+			dolphinv1alpha1.ApplicationServerConfigFileName: ApiServerDefaultaApplicationYaml,
+		})
+	}
+	return configs, nil
 }
 
 // merge defaultConfig
@@ -192,13 +211,15 @@ func (c *DolphinSchedulerConfig) Merge(mergedCfg *dolphinv1alpha1.RoleGroupSpec)
 	}
 	if mergedCfg.ConfigOverrides.CommonProperties == nil {
 		if commonArgs, ok := fileConfig[dolphinv1alpha1.DolphinCommonPropertiesName]; ok {
-			mergedCfg.ConfigOverrides.CommonProperties = commonArgs
+			mergedCfg.ConfigOverrides.CommonProperties = toMap(commonArgs)
 		}
 	} else {
 		src := mergedCfg.ConfigOverrides.CommonProperties
-		dist := fileConfig[dolphinv1alpha1.DolphinCommonPropertiesName]
-		maps.Copy(dist, src) // cr define overrdie default
-		mergedCfg.ConfigOverrides.CommonProperties = dist
+		if commonArgs, ok := fileConfig[dolphinv1alpha1.DolphinCommonPropertiesName]; ok {
+			dist := toMap(commonArgs)
+			maps.Copy(dist, src) // cr define overrdie default
+			mergedCfg.ConfigOverrides.CommonProperties = dist
+		}
 	}
 
 	// envOverride
@@ -219,4 +240,16 @@ func (c *DolphinSchedulerConfig) Merge(mergedCfg *dolphinv1alpha1.RoleGroupSpec)
 func parseQuantity(q string) resource.Quantity {
 	r := resource.MustParse(q)
 	return r
+}
+
+func toMap(i interface{}) map[string]string {
+	m := make(map[string]string)
+	if mapstring, ok := i.(map[string]string); ok {
+		for k, v := range mapstring {
+			m[k] = v
+		}
+	} else {
+		configLogger.Error(errors.New("parse config error, config is not a map[string]string type"), "parse config error", "actual type", reflect.TypeOf(i))
+	}
+	return m
 }

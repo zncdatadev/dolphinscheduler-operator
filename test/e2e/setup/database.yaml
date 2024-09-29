@@ -34,10 +34,20 @@ spec:
         image: postgres:13.4
         env:
         - name: POSTGRES_USER
-          value: test
+          value: ($POSTGRESQL_USERNAME)
         - name: POSTGRES_PASSWORD
-          value: test
+          value: ($POSTGRESQL_PASSWORD)
         - name: POSTGRES_DB
           value: dolphinscheduler
         ports:
         - containerPort: 5432
+---
+# postgresql credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgresql-credentials
+type: Opaque
+data:
+  username: dGVzdA==
+  password: dGVzdA==

@@ -41,6 +41,14 @@ rules:
   - update
   - watch
 - apiGroups:
+  - authentication.zncdata.dev
+  resources:
+  - authenticationclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - batch
   resources:
   - jobs
@@ -90,4 +98,12 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - secrets.zncdata.dev
+  resources:
+  - secretclasses
+  verbs:
+  - get
+  - list
   - watch

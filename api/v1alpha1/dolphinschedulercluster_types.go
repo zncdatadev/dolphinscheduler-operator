@@ -25,9 +25,10 @@ import (
 )
 
 const (
-	DolphinCommonPropertiesName = "common.properties"
-	DolphinConfigPath           = "/opt/dolphinscheduler/conf"
-	LogbackPropertiesFileName   = "logback-spring.xml"
+	DolphinCommonPropertiesName     = "common.properties"
+	DolphinConfigPath               = "/opt/dolphinscheduler/conf"
+	LogbackPropertiesFileName       = "logback-spring.xml"
+	ApplicationServerConfigFileName = "application.yaml"
 
 	DbInitImage              = "apache/dolphinscheduler-tools:3.2.1"
 	MaxLogFileSize           = "10Mi"
@@ -35,10 +36,11 @@ const (
 )
 
 const (
-	ConfigVolumeName     = "config"
-	LogbackVolumeName    = "logback"
-	WorkerDataVolumeName = "worker-data"
-	LoggingVolumeName    = "log"
+	ConfigVolumeName              = "common-config"
+	LogbackVolumeName             = "logback"
+	WorkerDataVolumeName          = "worker-data"
+	LoggingVolumeName             = "log"
+	LdapBindCredintialsVolumeName = "ldap-bind-credentials"
 )
 
 const (
@@ -129,6 +131,9 @@ type ClusterConfigSpec struct {
 
 	// +kubebuilder:validation:Required
 	Database *DatabaseSpec `json:"database,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	Authentication []AuthenticationSpec `json:"authentication,omitempty"`
 }
 
 type DatabaseSpec struct {
@@ -153,7 +158,6 @@ type ContainerLoggingSpec struct {
 
 type ConfigOverridesSpec struct {
 	CommonProperties map[string]string `json:"common.properties,omitempty"`
-	Envs             map[string]string `json:"envs,omitempty"`
 }
 type RoleSpec struct {
 
@@ -208,16 +212,7 @@ type ConfigSpec struct {
 	Resources *commonsv1alpha1.ResourcesSpec `json:"resources,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	SecurityContext *corev1.PodSecurityContext `json:"securityContext"`
-
-	// +kubebuilder:validation:Optional
-	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
-
-	// +kubebuilder:validation:Optional
 	Affinity *corev1.Affinity `json:"affinity"`
-
-	// +kubebuilder:validation:Optional
-	Tolerations []corev1.Toleration `json:"tolerations"`
 
 	// +kubebuilder:validation:Optional
 	PodDisruptionBudget *commonsv1alpha1.PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`

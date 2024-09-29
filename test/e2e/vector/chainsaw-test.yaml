@@ -3,6 +3,11 @@ kind: Test
 metadata:
   name: vector
 spec:
+  bindings:
+  - name: POSTGRESQL_USERNAME
+    value: test
+  - name: POSTGRESQL_PASSWORD
+    value: test
   steps:
   - try:
     - apply:

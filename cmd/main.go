@@ -20,10 +20,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 
-	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"strings"
+
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -38,6 +40,7 @@ import (
 
 	dolphinschedulerv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdatadev/dolphinscheduler-operator/internal/controller"
+	authv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/authentication/v1alpha1"
 	commonsv1alph1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
@@ -53,6 +56,8 @@ func init() {
 	utilruntime.Must(dolphinschedulerv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 	utilruntime.Must(commonsv1alph1.AddToScheme(scheme))
+	//+kubebuilder:scaffold:scheme
+	utilruntime.Must(authv1alpha1.AddToScheme(scheme))
 }
 
 func main() {

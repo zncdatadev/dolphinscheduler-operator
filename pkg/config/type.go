@@ -10,7 +10,7 @@ var configLogger = ctrl.Log.WithName("config")
 
 type Configuration interface {
 	ComputeEnv() (map[string]string, error)
-	ComputeFile() (map[string]map[string]string, error)
+	ComputeFile() (map[string]interface{}, error)
 	ComputeCli() (map[string]string, error)
 }
 
@@ -39,9 +39,9 @@ func GenerateAllFile(ctx context.Context, confGenerator []FileContentGenerator) 
 			continue
 		}
 
-		if content != "" {
-			data[generator.FileName()] = content
-		}
+		// if content != "" {
+		data[generator.FileName()] = content
+		// }
 	}
 	return data
 }

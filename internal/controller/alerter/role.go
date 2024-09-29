@@ -50,16 +50,16 @@ func (a *AlerterRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.C
 	reconcilers = append(reconcilers, workerConfigMap)
 
 	//deployment
-	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo).WithCommandArgs().WithEnvFrom().
+	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo).CommonCommandArgs().
 		WithPorts(util.SortedMap{
 			dolphinv1alpha1.AlerterPortName:       dolphinv1alpha1.AlerterPort,
 			dolphinv1alpha1.AlerterActualPortName: dolphinv1alpha1.AlerterActualPort,
 		}).
 		WithEnvs(util.SortedMap{"JAVA_OPTS": "-Xms512m -Xmx512m -Xmn256m"}).
 		WithReadinessAndLivenessProbe(dolphinv1alpha1.AlerterActualPort).
-		WithCommandArgs().
+		CommonCommandArgs().
 		WithVolumeMounts(nil)
-	dep := common.CreateDeploymentReconciler(containerBuilder, ctx, a.client, a.image, a.clusterOperation, roleGroupInfo, mergedCfg, a.zkConfigMapName)
+	dep := common.CreateDeploymentReconciler(containerBuilder, ctx, a.client, a.image, a.clusterOperation, roleGroupInfo, mergedCfg, a.zkConfigMapName, nil)
 	reconcilers = append(reconcilers, dep)
 
 	//svc

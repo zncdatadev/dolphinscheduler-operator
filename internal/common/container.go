@@ -22,11 +22,13 @@ func NewContainerBuilder(
 	zookeeperConfigMapName string,
 	roleGroupInfo *reconciler.RoleGroupInfo,
 ) *ContainerBuilder {
-	return &ContainerBuilder{
+	b := &ContainerBuilder{
 		Container:              builder.NewContainer(string(contaienr), image),
 		ZookeeperConfigMapName: zookeeperConfigMapName,
 		RoleGroupInfo:          roleGroupInfo,
 	}
+	b.volumeMounts = b.commonVolumeMounts()
+	return b
 }
 
 type ContainerBuilder struct {
@@ -34,13 +36,14 @@ type ContainerBuilder struct {
 	ZookeeperConfigMapName string
 	RoleGroupInfo          *reconciler.RoleGroupInfo
 
-	envs         []corev1.EnvVar
-	envfrom      []corev1.EnvFromSource
-	ports        []corev1.ContainerPort
-	readiness    *corev1.Probe
-	liveness     *corev1.Probe
-	volumeMounts []corev1.VolumeMount
-	argsScript   string
+	secretEnvfrom string
+	envs          []corev1.EnvVar
+	ports         []corev1.ContainerPort
+	readiness     *corev1.Probe
+	liveness      *corev1.Probe
+	volumeMounts  []corev1.VolumeMount
+	args          []string
+	argsScript    string
 }
 
 // with envs
@@ -49,10 +52,18 @@ func (c *ContainerBuilder) WithEnvs(envMap util.SortedMap) *ContainerBuilder {
 	//convert map to envs
 	var envs []corev1.EnvVar
 	envMap.Range(func(k string, v interface{}) bool {
-		envs = append(envs, corev1.EnvVar{
-			Name:  k,
-			Value: v.(string),
-		})
+		switch envVal := v.(type) {
+		case string:
+			envs = append(envs, corev1.EnvVar{
+				Name:  k,
+				Value: envVal,
+			})
+		case corev1.EnvVarSource:
+			envs = append(envs, corev1.EnvVar{
+				Name:      k,
+				ValueFrom: &envVal,
+			})
+		}
 		return true
 	})
 	envs = append(envs, corev1.EnvVar{
@@ -66,27 +77,43 @@ func (c *ContainerBuilder) WithEnvs(envMap util.SortedMap) *ContainerBuilder {
 			},
 		},
 	})
-	c.envs = envs
+	c.envs = append(c.envs, envs...)
 	return c
 }
 
-// with envfrom
+// with secret env from
 // key is envfrom name, value is envfrom value
-func (c *ContainerBuilder) WithEnvFrom() *ContainerBuilder {
-	c.envfrom = []corev1.EnvFromSource{
-		{
-			ConfigMapRef: &corev1.ConfigMapEnvSource{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: RoleGroupEnvsConfigMapName(c.RoleGroupInfo.GetClusterName()),
+func (c *ContainerBuilder) WithSecretEnvFrom(secretName string) *ContainerBuilder {
+	c.secretEnvfrom = secretName
+	return c
+}
+
+// env map from secret
+func (c *ContainerBuilder) AddEnvFromSecret(secretName string, envToSecretKeymap map[string]string) *ContainerBuilder {
+
+	for envKey, secretKey := range envToSecretKeymap {
+		c.envs = append(c.envs, corev1.EnvVar{
+			Name: envKey,
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: secretName,
+					},
+					Key: secretKey,
 				},
 			},
-		},
+		})
 	}
 	return c
 }
 
+// get command args
+func (c *ContainerBuilder) GetCommandArgs() []string {
+	return c.args
+}
+
 // with command args
-func (c *ContainerBuilder) WithCommandArgs() *ContainerBuilder {
+func (c *ContainerBuilder) CommonCommandArgs() *ContainerBuilder {
 	var args []string
 	args = append(args, opgoutil.CommonBashTrapFunctions)
 	args = append(args, opgoutil.RemoveVectorShutdownFileCommand())
@@ -95,6 +122,7 @@ func (c *ContainerBuilder) WithCommandArgs() *ContainerBuilder {
 	args = append(args, opgoutil.InvokeWaitForTermination)
 	args = append(args, opgoutil.CreateVectorShutdownFileCommand())
 	c.argsScript = strings.Join(args, "\n")
+	c.args = append(c.args, args...)
 	return c
 }
 
@@ -122,7 +150,7 @@ func (c *ContainerBuilder) WithPorts(portMap util.SortedMap) *ContainerBuilder {
 		})
 		return true
 	})
-	c.ports = ports
+	c.ports = append(c.ports, ports...)
 	return c
 }
 
@@ -170,7 +198,27 @@ func (c *ContainerBuilder) WithReadinessAndLivenessProbe(port int) *ContainerBui
 // with volume mounts
 // key is volume name, value is mount path
 func (c *ContainerBuilder) WithVolumeMounts(vmMap util.SortedMap) *ContainerBuilder {
-	var volumeMounts []corev1.VolumeMount = []corev1.VolumeMount{
+	if len(vmMap) != 0 {
+		vmMap.Range(func(k string, v interface{}) bool {
+			c.volumeMounts = append(c.volumeMounts, corev1.VolumeMount{
+				Name:      k,
+				MountPath: v.(string),
+			})
+			return true
+		})
+	}
+	return c
+}
+
+// reset volume mounts
+func (c *ContainerBuilder) ResetVolumeMounts() *ContainerBuilder {
+	c.volumeMounts = []corev1.VolumeMount{}
+	return c
+}
+
+// common volume mounts
+func (c *ContainerBuilder) commonVolumeMounts() []corev1.VolumeMount {
+	return []corev1.VolumeMount{
 		{
 			Name:      dolphinv1alpha1.ConfigVolumeName,
 			MountPath: RoleConfigPath(util.Role(c.RoleGroupInfo.RoleName), dolphinv1alpha1.DolphinCommonPropertiesName),
@@ -182,18 +230,6 @@ func (c *ContainerBuilder) WithVolumeMounts(vmMap util.SortedMap) *ContainerBuil
 			SubPath:   dolphinv1alpha1.LogbackPropertiesFileName,
 		},
 	}
-	if len(vmMap) != 0 {
-		vmMap.Range(func(k string, v interface{}) bool {
-			volumeMounts = append(volumeMounts, corev1.VolumeMount{
-				Name:      k,
-				MountPath: v.(string),
-			})
-			return true
-		})
-	}
-
-	c.volumeMounts = volumeMounts
-	return c
 }
 
 // build container
@@ -206,5 +242,8 @@ func (c *ContainerBuilder) Build() *corev1.Container {
 		SetCommand([]string{"/bin/bash", "-x", "-euo", "pipefail", "-c"}).
 		AddVolumeMounts(c.volumeMounts).
 		SetArgs([]string{c.argsScript})
+	if c.secretEnvfrom != "" {
+		c.WithSecretEnvFrom(c.secretEnvfrom)
+	}
 	return c.Container.Build()
 }
