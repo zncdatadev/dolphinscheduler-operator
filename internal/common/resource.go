@@ -21,7 +21,7 @@ func CreateDeploymentReconciler(
 	clusterOperation *commonsv1alpha1.ClusterOperationSpec,
 	roleGroupInfo *reconciler.RoleGroupInfo,
 	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
-	zkConfigMapName string) reconciler.ResourceReconciler[builder.DeploymentBuilder] {
+	zkConfigMapName string, volumes []corev1.Volume) reconciler.ResourceReconciler[builder.DeploymentBuilder] {
 	container := contanerBuilder.Build()
 	// stopped
 	stopped := false
@@ -41,7 +41,7 @@ func CreateDeploymentReconciler(
 		CommandOverrides: mergedCfg.CommandOverrides,
 		EnvOverrides:     mergedCfg.EnvOverrides,
 	}
-	return NewDeploymentReconciler(ctx, mergedCfg, client, stopped, image, options, roleGroupInfo, []corev1.Container{*container})
+	return NewDeploymentReconciler(ctx, mergedCfg, client, stopped, image, options, roleGroupInfo, []corev1.Container{*container}, volumes)
 }
 func CreateStatefulSetReconciler(
 	containerBuilder *ContainerBuilder,

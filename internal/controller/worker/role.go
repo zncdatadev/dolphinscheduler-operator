@@ -52,7 +52,7 @@ func (a *WorkerRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Co
 	reconcilers = append(reconcilers, workerConfigMap)
 
 	//statefulset
-	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo).WithCommandArgs().WithEnvFrom().
+	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo).CommonCommandArgs().
 		WithPorts(util.SortedMap{
 			dolphinv1alpha1.WorkerPortName:       dolphinv1alpha1.WorkerPort,
 			dolphinv1alpha1.WorkerActualPortName: dolphinv1alpha1.WorkerActualPort,
@@ -71,7 +71,7 @@ func (a *WorkerRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Co
 			"WORKER_TENANT_CONFIG_DISTRIBUTED_TENANT":                                     "false",
 		}).
 		WithReadinessAndLivenessProbe(dolphinv1alpha1.WorkerActualPort).
-		WithCommandArgs().
+		CommonCommandArgs().
 		WithVolumeMounts(nil)
 	dep := common.CreateStatefulSetReconciler(containerBuilder, ctx, a.client, a.image, a.clusterOperation, roleGroupInfo, mergedCfg,
 		a.zkConfigMapName, dolphinv1alpha1.WorkerDataVolumeName)

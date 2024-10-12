@@ -11,11 +11,11 @@ spec:
 apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource
 metadata:
-  name: kubedata-catalog
+  name: kubedoop-catalog
 spec:
   sourceType: grpc
-  image: quay.io/zncdatadev/kubedata-catalog:latest
-  displayName: kubedata-catalog
+  image: quay.io/zncdatadev/kubedoop-catalog:latest
+  displayName: kubedoop-catalog
   publisher: zncdatadev
   updateStrategy:
     registryPoll:

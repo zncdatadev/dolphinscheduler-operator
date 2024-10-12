@@ -56,7 +56,7 @@ func (a *MasterRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Co
 	reconcilers = append(reconcilers, envFromConfigMap)
 
 	//statefulset
-	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo).WithCommandArgs().WithEnvFrom().
+	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo).CommonCommandArgs().
 		WithPorts(util.SortedMap{
 			dolphinv1alpha1.MasterPortName:       dolphinv1alpha1.MasterPort,
 			dolphinv1alpha1.MasterActualPortName: dolphinv1alpha1.MasterActualPort,
@@ -81,7 +81,7 @@ func (a *MasterRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Co
 			"MASTER_TASK_COMMIT_RETRYTIMES":                                               "5",
 		}).
 		WithReadinessAndLivenessProbe(dolphinv1alpha1.MasterActualPort).
-		WithCommandArgs().
+		CommonCommandArgs().
 		WithVolumeMounts(nil)
 	sts := common.CreateStatefulSetReconciler(containerBuilder, ctx, a.client, a.image, a.clusterOperation, roleGroupInfo, mergedCfg,
 		a.zkConfigMapName, "")

@@ -6,7 +6,7 @@ metadata:
 spec:
   channel: stable
   name: commons-operator
-  source: kubedata-catalog
+  source: kubedoop-catalog
   sourceNamespace: ($namespace)
   installPlanApproval: Automatic
 ---
@@ -17,7 +17,7 @@ metadata:
 spec:
   channel: stable
   name: secret-operator
-  source: kubedata-catalog
+  source: kubedoop-catalog
   sourceNamespace: ($namespace)
   installPlanApproval: Automatic
 ---
@@ -28,7 +28,7 @@ metadata:
 spec:
   channel: stable
   name: zookeeper-operator
-  source: kubedata-catalog
+  source: kubedoop-catalog
   sourceNamespace: ($namespace)
   installPlanApproval: Automatic
 

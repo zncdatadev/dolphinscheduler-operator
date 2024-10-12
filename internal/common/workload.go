@@ -23,10 +23,14 @@ func NewDeploymentReconciler(
 	image *util.Image,
 	options builder.WorkloadOptions,
 	roleGroupInfo *reconciler.RoleGroupInfo,
-	containers []corev1.Container) reconciler.ResourceReconciler[builder.DeploymentBuilder] {
+	containers []corev1.Container,
+	volumes []corev1.Volume) reconciler.ResourceReconciler[builder.DeploymentBuilder] {
 	deploymentBuilder := &DeploymentBuilder{
 		Deployment:      builder.NewDeployment(client, DeploymentName(roleGroupInfo), &mergedCfg.Replicas, image, options),
 		WorkloadBuilder: NewWorkloadBuilder(mergedCfg, roleGroupInfo, containers),
+	}
+	if len(volumes) > 0 {
+		deploymentBuilder.WithVolumes(volumes)
 	}
 	return reconciler.NewDeployment(client, DeploymentName(roleGroupInfo), deploymentBuilder, stopped)
 }
@@ -54,11 +58,13 @@ func NewWorkloadBuilder(
 	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
 	rolegroupInfo *reconciler.RoleGroupInfo,
 	containers []corev1.Container) *WorkloadBuilder {
-	return &WorkloadBuilder{
+	builder := &WorkloadBuilder{
 		RoleGroupInf: rolegroupInfo,
 		Containers:   containers,
 		MergedCfg:    mergedCfg,
 	}
+	builder.volumes = builder.commonVolumes()
+	return builder
 }
 
 var _ builder.DeploymentBuilder = &DeploymentBuilder{}
@@ -72,7 +78,7 @@ type DeploymentBuilder struct {
 func (b *DeploymentBuilder) Build(ctx context.Context) (ctrlclient.Object, error) {
 	b.SetAffinity(b.MergedCfg.Config.Affinity)
 	b.AddContainers(b.Containers)
-	b.AddVolumes(b.volumes())
+	b.AddVolumes(b.volumes)
 	// b.SetSecurityContext(1001, 1001, false)
 
 	obj, err := b.GetObject()
@@ -94,7 +100,7 @@ type StatefulSetBuilder struct {
 func (b *StatefulSetBuilder) Build(ctx context.Context) (ctrlclient.Object, error) {
 	b.SetAffinity(b.MergedCfg.Config.Affinity)
 	b.AddContainers(b.Containers)
-	b.AddVolumes(b.volumes())
+	b.AddVolumes(b.volumes)
 	// b.SetSecurityContext(1001, 1001, false)
 
 	obj, err := b.GetObject()
@@ -116,7 +122,8 @@ type WorkloadBuilder struct {
 	Containers   []corev1.Container
 	MergedCfg    *dolphinv1alpha1.RoleGroupSpec
 
-	pvcs []corev1.PersistentVolumeClaim
+	pvcs    []corev1.PersistentVolumeClaim
+	volumes []corev1.Volume
 }
 
 // decoraate vector
@@ -127,7 +134,11 @@ func (w *WorkloadBuilder) VectorDecorator(workloadObject ctrlclient.Object, imag
 }
 
 // with volumes
-func (w *WorkloadBuilder) volumes() []corev1.Volume {
+func (w *WorkloadBuilder) WithVolumes(volumes []corev1.Volume) {
+	w.volumes = append(w.volumes, volumes...)
+}
+
+func (w *WorkloadBuilder) commonVolumes() []corev1.Volume {
 	volumes := []corev1.Volume{
 		{
 			Name: dolphinv1alpha1.LoggingVolumeName,
@@ -180,7 +191,7 @@ func (w *WorkloadBuilder) serviceAccount() string {
 func (w *WorkloadBuilder) WithPvcTemplates(pvcName string, storageSize resource.Quantity) *WorkloadBuilder {
 	//assert w is statefulset
 	w.pvcs = []corev1.PersistentVolumeClaim{
-		corev1.PersistentVolumeClaim{
+		{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: pvcName,
 			},

@@ -1,0 +1,70 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: ldap
+spec:
+  bindings:
+  - name: POSTGRESQL_USERNAME
+    value: test
+  - name: POSTGRESQL_PASSWORD
+    value: test
+  - name: LDAP_ADMIN_USERNAME
+    value: admin
+  - name: LDAP_ADMIN_PASSWORD
+    value: admin
+  - name: DOLPHIN_USER1
+    value: dolphinscheduler
+  - name: DOLPHIN_PASSWORD1
+    value: dolphinscheduler
+  - name: LDAP_BASE_DN
+    value: ou=users,dc=example,dc=com
+  - name: LDAP_ROOT_DC
+    value: dc=example,dc=com
+  - name: DOLPHIN_LDAP_SERVICE_USER
+    value: uid=ldapadmin,ou=users,dc=example,dc=com
+  - name: DOLPHIN_LDAP_SERVICE_PASSWORD
+    value: ldapadmin
+  steps:
+  - try:
+    - apply:
+        file: ../setup/database.yaml
+    - assert:
+        file: ../setup/database-assert.yaml
+  - try:
+    - apply:
+        file: openldap.yaml
+    - assert:
+        file: openldap-assert.yaml        
+  - try:
+    - apply:
+        file: ldap.yaml
+    - assert:
+        file: ldap-assert.yaml
+  - try:        
+    - apply:
+        file: ../setup/olm.yaml
+    - assert:
+        file: ../setup/olm-assert.yaml
+  - try:
+    - apply:
+        file: ../setup/subs.yaml
+    - assert:
+        file: ../setup/subs-assert.yaml
+  - try:
+    - apply:
+        file: ../setup/secret.yaml
+    - assert:
+        file: ../setup/secret-assert.yaml        
+  - try:
+    - apply:
+        file: ../setup/zookeeper.yaml
+    - assert:
+        file: ../setup/zookeeper-assert.yaml
+  - try:
+    - apply:
+        file: dolphinscheduler.yaml
+    - assert:
+        file: dolphinscheduler-assert.yaml
+    cleanup:
+    - sleep:
+        duration: 30s

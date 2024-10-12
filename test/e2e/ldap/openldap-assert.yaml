@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openldap-users
+---  
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openldap-deployment
+status:
+  replicas: 1
+  availableReplicas: 1
+  readyReplicas: 1
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openldap
