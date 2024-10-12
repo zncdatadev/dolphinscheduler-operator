@@ -33,12 +33,12 @@ PROJECT_NAME = dolphinscheduler-operator
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
-# zncdata.dev/dolphinscheduler-operator-bundle:$VERSION and zncdata.dev/dolphinscheduler-operator-catalog:$VERSION.
+# quay.io/zncdatadev/dolphinscheduler-operator-bundle:$VERSION and quay.io/zncdatadev/dolphinscheduler-operator-catalog:$VERSION.
 IMAGE_TAG_BASE ?= $(REGISTRY)/$(PROJECT_NAME)
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
+BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:$(VERSION)
 
 # BUNDLE_GEN_FLAGS are the flags passed to the operator-sdk generate bundle command
 BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
@@ -56,7 +56,7 @@ endif
 OPERATOR_SDK_VERSION ?= v1.35.0
 
 # Image URL to use all building/pushing image targets
-IMG ?= $(IMAGE_TAG_BASE):v$(VERSION)
+IMG ?= $(IMAGE_TAG_BASE):$(VERSION)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.26.1
 
@@ -115,6 +115,22 @@ fmt: ## Run go fmt against code.
 .PHONY: vet
 vet: ## Run go vet against code.
 	go vet ./...
+
+GOLANGCI_LINT = $(shell pwd)/bin/golangci-lint
+GOLANGCI_LINT_VERSION ?= v1.60.3
+golangci-lint:
+	@[ -f $(GOLANGCI_LINT) ] || { \
+	set -e ;\
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell dirname $(GOLANGCI_LINT)) $(GOLANGCI_LINT_VERSION) ;\
+	}
+
+.PHONY: lint
+lint: golangci-lint ## Run golangci-lint linter & yamllint
+	$(GOLANGCI_LINT) run --timeout 5m
+
+.PHONY: lint-fix
+lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
+	$(GOLANGCI_LINT) run --fix
 
 .PHONY: test
 test: manifests generate fmt vet envtest ## Run tests.
@@ -177,7 +193,7 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	# add --server-side=true to fix "is invalid: metadata.annotations: Too long: must have at most 262144 bytes"
+	# add --server-side=true to fix "is invadolphilid: metadata.annotations: Too long: must have at most 262144 bytes"
 	# ref: https://stackoverflow.com/a/70083579
 	$(KUSTOMIZE) build config/default | kubectl apply --server-side=true -f -
 
@@ -199,7 +215,7 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 
 ## Tool Versions
-KUSTOMIZE_VERSION ?= v5.4.3
+KUSTOMIZE_VERSION ?= v5.4.2
 CONTROLLER_TOOLS_VERSION ?= v0.16.2
 
 .PHONY: kustomize
@@ -259,16 +275,8 @@ bundle-push: ## Push the bundle image.
 bundle-buildx: ## Build the bundle image.
 	- $(CONTAINER_TOOL) buildx create --name project-v3-builder
 	$(CONTAINER_TOOL) buildx use project-v3-builder
-	$(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag $(BUNDLE_IMG) -f bundle.Dockerfile.cross .
+	$(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag $(BUNDLE_IMG) -f bundle.Dockerfile .
 	$(CONTAINER_TOOL) buildx rm project-v3-builder
-
-.PHONY: bundle-run
-bundle-run: ## Run the bundle image.
-	$(OPERATOR_SDK) run bundle $(BUNDLE_IMG)
-
-.PHONY: bundle-cleanup
-bundle-cleanup: ## Clean up the bundle image.
-	$(OPERATOR_SDK) cleanup $(PROJECT_NAME)
 
 OPM_VERSION ?= v1.43.0
 CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:latest
@@ -282,7 +290,7 @@ ifeq (,$(shell which opm 2>/dev/null))
 	set -e ;\
 	mkdir -p $(dir $(OPM)) ;\
 	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/${OPM_VERSION}/$${OS}-$${ARCH}-opm ;\
+	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/$(OPM_VERSION)/$${OS}-$${ARCH}-opm ;\
 	chmod +x $(OPM) ;\
 	}
 else
@@ -290,8 +298,8 @@ OPM = $(shell which opm)
 endif
 endif
 
-.PHONY: catalog-build
-catalog-build: opm ## Build a catalog manifests.
+.PHONY: catalog
+catalog: opm ## Build a catalog manifests.
 	mkdir -p catalog
 	@if ! test -f ./catalog.Dockerfile; then \
 		$(OPM) generate dockerfile catalog; \
@@ -302,8 +310,8 @@ catalog-build: opm ## Build a catalog manifests.
 catalog-validate: opm ## Validate a catalog manifests.
 	$(OPM) validate catalog
 
-.PHONY: catalog-docker-build
-catalog-docker-build: ## Build a catalog image.
+.PHONY: catalog-build
+catalog-build: ## Build a catalog image.
 	$(CONTAINER_TOOL) build -t ${CATALOG_IMG} -f catalog.Dockerfile .
 
 # Push the catalog image.
@@ -311,19 +319,17 @@ catalog-docker-build: ## Build a catalog image.
 catalog-docker-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
 
-.PHONY: catalog-docker-buildx
-catalog-docker-buildx: ## Build and push a catalog image for cross-platform support
+.PHONY: catalog-buildx
+catalog-buildx: ## Build and push a catalog image for cross-platform support
 	- $(CONTAINER_TOOL) buildx create --name project-v3-builder
 	$(CONTAINER_TOOL) buildx use project-v3-builder
 	$(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) -f catalog.Dockerfile --tag ${CATALOG_IMG} .
 	$(CONTAINER_TOOL) buildx rm project-v3-builder
 
-##@ E2E
-
 # kind
 KIND_VERSION ?= v0.23.0
 
-KINDTEST_K8S_VERSION ?= 1.27.11
+KINDTEST_K8S_VERSION ?= 1.26.14
 
 KIND_IMAGE ?= kindest/node:v${KINDTEST_K8S_VERSION}
 
@@ -356,7 +362,6 @@ kind-create: kind ## Create a kind cluster.
 
 .PHONY: kind-setup
 kind-setup: kind ## setup kind cluster base environment
-	@echo "Setup kind cluster base environment, install ingress-nginx and OLM"
 	kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
 	kubectl -n ingress-nginx wait deployment ingress-nginx-controller --for=condition=available --timeout=300s
 	curl -sSL https://github.com/operator-framework/operator-lifecycle-manager/releases/download/$(OLM_VERSION)/install.sh | bash -s $(OLM_VERSION)
@@ -367,7 +372,6 @@ kind-delete: kind ## Delete a kind cluster.
 
 # chainsaw
 
-CHAINSAW_RELEASE_URL ?= https://github.com/kyverno/chainsaw/releases/download/v0.2.8/chainsaw_linux_amd64.tar.gz
 CHAINSAW_VERSION ?= v0.2.8
 CHAINSAW = $(LOCALBIN)/chainsaw
 
@@ -407,9 +411,8 @@ chainsaw-setup: manifests kustomize ## Run the chainsaw setup
 
 .PHONY: chainsaw-test
 chainsaw-test: chainsaw ## Run the chainsaw test
-	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --cluster cluster-1=$(KIND_KUBECONFIG) --test-dir ./test/e2e
+	KUBECONFIG=$(KIND_KUBECONFIG)  $(CHAINSAW) test --cluster cluster-1=$(KIND_KUBECONFIG) --test-dir ./test/e2e/
 
 .PHONY: chainsaw-cleanup
 chainsaw-cleanup: manifests kustomize ## Run the chainsaw cleanup
 	KUBECONFIG=$(KIND_KUBECONFIG) make undeploy
-
