@@ -57,7 +57,7 @@ func (a *ApierRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Con
 	reconcilers = append(reconcilers, apiServerConfigMap)
 
 	//deployment
-	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo).CommonCommandArgs().
+	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo, mergedCfg).CommonCommandArgs().
 		WithPorts(util.SortedMap{
 			dolphinv1alpha1.ApiPortName:       dolphinv1alpha1.ApiPort,
 			dolphinv1alpha1.ApiPythonPortName: dolphinv1alpha1.ApiPythonPort,

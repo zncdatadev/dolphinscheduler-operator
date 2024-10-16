@@ -50,7 +50,7 @@ func (a *AlerterRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.C
 	reconcilers = append(reconcilers, workerConfigMap)
 
 	//deployment
-	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo).CommonCommandArgs().
+	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo, mergedCfg).CommonCommandArgs().
 		WithPorts(util.SortedMap{
 			dolphinv1alpha1.AlerterPortName:       dolphinv1alpha1.AlerterPort,
 			dolphinv1alpha1.AlerterActualPortName: dolphinv1alpha1.AlerterActualPort,

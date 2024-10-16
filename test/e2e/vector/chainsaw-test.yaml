@@ -36,6 +36,7 @@ spec:
     - apply:
         file: dolphinscheduler.yaml
     - assert:
+        timeout: 400s
         file: dolphinscheduler-assert.yaml
     cleanup:
     - sleep:

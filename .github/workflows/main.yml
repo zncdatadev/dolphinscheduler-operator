@@ -20,8 +20,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         LINTER_RULES_PATH: /
         MARKDOWN_CONFIG_FILE: .markdownlint.yml
-
-
   golang-test:
     name: Golang Test
     runs-on: ubuntu-22.04
@@ -70,12 +68,27 @@ jobs:
       with:
         go-version: '1.23'
         cache: false
+    - name: Free Disk Space (Ubuntu)
+      uses: jlumbroso/free-disk-space@main
+      with:
+        # this might remove tools that are actually needed,
+        # if set to "true" but frees about 6 GB
+        tool-cache: false
+        
+        # all of these default to true, but feel free to set to
+        # "false" if necessary for your workflow
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        docker-images: true
+        swap-storage: true        
     - name: Create KinD clustet pur
       env:
         KINDTEST_K8S_VERSION: ${{ matrix.k8s-version}}
         KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
         KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
-      run: make kind-create
+      run: make kind-create      
     - name: Chainsaw test setup
       env:
         KINDTEST_K8S_VERSION: ${{ matrix.k8s-version }}

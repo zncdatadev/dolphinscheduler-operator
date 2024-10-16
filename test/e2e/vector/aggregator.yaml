@@ -8,10 +8,10 @@ spec:
  containers:
    - name: es7
      image: docker.elastic.co/elasticsearch/elasticsearch:7.17.7
-     resources:
-       limits:
-         cpu: 500m
-         memory: 1Gi
+    #  resources:
+    #    limits:
+    #      cpu: 500m
+    #      memory: 1Gi
      env:
        - name: discovery.type
          value: "single-node"
@@ -28,10 +28,10 @@ spec:
          name: http
    - name: kibana7
      image: docker.elastic.co/kibana/kibana:7.17.7
-     resources:
-       limits:
-         cpu: 500m
-         memory: 1Gi
+    #  resources:
+    #    limits:
+    #      cpu: 500m
+    #      memory: 1Gi
      env:
        - name: ELASTICSEARCH_HOSTS
          value: "http://localhost:9200"
@@ -157,7 +157,7 @@ spec:
             - containerPort: 6000
               name: vector
               protocol: TCP
-          resources: {}
+          # resources: {}
           volumeMounts:
             - mountPath: /vector-data-dir
               name: data
