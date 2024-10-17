@@ -30,16 +30,6 @@ spec:
         file: ../setup/database.yaml
     - assert:
         file: ../setup/database-assert.yaml
-  - try:
-    - apply:
-        file: openldap.yaml
-    - assert:
-        file: openldap-assert.yaml        
-  - try:
-    - apply:
-        file: ldap.yaml
-    - assert:
-        file: ldap-assert.yaml
   - try:        
     - apply:
         file: ../setup/olm.yaml
@@ -50,6 +40,16 @@ spec:
         file: ../setup/subs.yaml
     - assert:
         file: ../setup/subs-assert.yaml
+  - try:
+    - apply:
+        file: openldap.yaml
+    - assert:
+        file: openldap-assert.yaml
+  - try:
+    - apply:
+        file: ldap.yaml
+    - assert:
+        file: ldap-assert.yaml        
   - try:
     - apply:
         file: ../setup/secret.yaml
@@ -64,6 +64,7 @@ spec:
     - apply:
         file: dolphinscheduler.yaml
     - assert:
+        timeout: 400s
         file: dolphinscheduler-assert.yaml
     cleanup:
     - sleep:

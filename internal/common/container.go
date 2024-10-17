@@ -21,13 +21,16 @@ func NewContainerBuilder(
 	image *opgoutil.Image,
 	zookeeperConfigMapName string,
 	roleGroupInfo *reconciler.RoleGroupInfo,
+	mergedConfig *dolphinv1alpha1.RoleGroupSpec,
 ) *ContainerBuilder {
 	b := &ContainerBuilder{
 		Container:              builder.NewContainer(string(contaienr), image),
 		ZookeeperConfigMapName: zookeeperConfigMapName,
 		RoleGroupInfo:          roleGroupInfo,
+		MergedConfig:           mergedConfig,
 	}
 	b.volumeMounts = b.commonVolumeMounts()
+
 	return b
 }
 
@@ -35,6 +38,7 @@ type ContainerBuilder struct {
 	*builder.Container
 	ZookeeperConfigMapName string
 	RoleGroupInfo          *reconciler.RoleGroupInfo
+	MergedConfig           *dolphinv1alpha1.RoleGroupSpec
 
 	secretEnvfrom string
 	envs          []corev1.EnvVar
@@ -162,7 +166,7 @@ func (c *ContainerBuilder) WithReadinessAndLivenessProbe(port int) *ContainerBui
 			Exec: &corev1.ExecAction{
 				Command: []string{
 					"curl",
-					"-s",
+					// "-s",
 					"http://localhost:" + strconv.Itoa(port) + "/actuator/health/readiness",
 				},
 			},
@@ -180,7 +184,7 @@ func (c *ContainerBuilder) WithReadinessAndLivenessProbe(port int) *ContainerBui
 			Exec: &corev1.ExecAction{
 				Command: []string{
 					"curl",
-					"-s",
+					// "-s",
 					"http://localhost:" + strconv.Itoa(port) + "/actuator/health/liveness",
 				},
 			},
@@ -244,6 +248,9 @@ func (c *ContainerBuilder) Build() *corev1.Container {
 		SetArgs([]string{c.argsScript})
 	if c.secretEnvfrom != "" {
 		c.WithSecretEnvFrom(c.secretEnvfrom)
+	}
+	if c.MergedConfig != nil {
+		c.SetResources(c.MergedConfig.Config.Resources)
 	}
 	return c.Container.Build()
 }

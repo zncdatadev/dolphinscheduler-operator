@@ -60,7 +60,7 @@ func initDatabase(zookeeperConfigMapName string, image *opgoutil.Image, clusterI
 	rolegroup := reconciler.RoleGroupInfo{
 		RoleInfo: reconciler.RoleInfo{ClusterInfo: clusterInfo},
 	}
-	return common.NewContainerBuilder(ContainerDbInitJob, image, zookeeperConfigMapName, &rolegroup).
+	return common.NewContainerBuilder(ContainerDbInitJob, image, zookeeperConfigMapName, &rolegroup, nil).
 		ResetVolumeMounts().
 		ResetCommandArgs("chmod +x tools/bin/upgrade-schema.sh && tools/bin/upgrade-schema.sh").Build()
 }

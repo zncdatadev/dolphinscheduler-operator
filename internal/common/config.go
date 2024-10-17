@@ -30,22 +30,22 @@ func DefaultConfig(role util.Role) *DolphinSchedulerConfig {
 	case Master:
 		cpuMin = parseQuantity("400m")
 		cpuMax = parseQuantity("800m")
-		memoryLimit = parseQuantity("1024Mi")
+		memoryLimit = parseQuantity("800Mi")
 		storage = parseQuantity("1Gi")
 	case Worker:
 		cpuMin = parseQuantity("600m")
 		cpuMax = parseQuantity("1000m")
-		memoryLimit = parseQuantity("2Gi")
+		memoryLimit = parseQuantity("1Gi")
 		storage = parseQuantity("2Gi")
 	case Api:
 		cpuMin = parseQuantity("400m")
 		cpuMax = parseQuantity("800m")
-		memoryLimit = parseQuantity("512Mi")
+		memoryLimit = parseQuantity("1Gi")
 		storage = parseQuantity("1Gi")
 	case Alerter:
 		cpuMin = parseQuantity("300m")
 		cpuMax = parseQuantity("600m")
-		memoryLimit = parseQuantity("512Mi")
+		memoryLimit = parseQuantity("800Mi")
 		storage = parseQuantity("1Gi")
 	default:
 		panic("invalid role")

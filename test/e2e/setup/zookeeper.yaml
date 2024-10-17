@@ -9,10 +9,10 @@ spec:
     config:
       resources:
         cpu:
-          min: "100m"
-          max: "200m"
+          min: "600m"
+          max: "1000m"
         memory:
-          limit: "400Mi"
+          limit: "512Mi"
     roleGroups:
       default:
         replicas: 1

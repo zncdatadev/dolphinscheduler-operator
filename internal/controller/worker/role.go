@@ -52,7 +52,7 @@ func (a *WorkerRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Co
 	reconcilers = append(reconcilers, workerConfigMap)
 
 	//statefulset
-	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo).CommonCommandArgs().
+	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo, mergedCfg).CommonCommandArgs().
 		WithPorts(util.SortedMap{
 			dolphinv1alpha1.WorkerPortName:       dolphinv1alpha1.WorkerPort,
 			dolphinv1alpha1.WorkerActualPortName: dolphinv1alpha1.WorkerActualPort,

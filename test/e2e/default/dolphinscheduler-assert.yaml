@@ -14,7 +14,6 @@ metadata:
 status:
   replicas: 1
   availableReplicas: 1
-  readyReplicas: 1
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -23,7 +22,6 @@ metadata:
 status:
   replicas: 1
   availableReplicas: 1
-  readyReplicas: 1
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -32,4 +30,3 @@ metadata:
 status:
   replicas: 1
   availableReplicas: 1
-  readyReplicas: 1

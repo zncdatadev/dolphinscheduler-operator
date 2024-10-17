@@ -28,11 +28,54 @@ spec:
         file: ../setup/zookeeper.yaml
     - assert:
         file: ../setup/zookeeper-assert.yaml
+    catch:
+      - sleep:
+          duration: 5s
+      - script:
+          env:
+            - name: NAMESPACE
+              value: ($namespace)
+          content: |
+            set -ex
+            kubectl -n $NAMESPACE get pods
+      - describe:
+          apiVersion: v1
+          kind: Pod
+          selector: app.kubernetes.io/instance=test-zk
+      - podLogs:
+          selector: app.kubernetes.io/name=zookeeper-operator
+          tail: -1
+  - try:
+    - script:
+        content: |
+          set -ex
+          free -h
+          df -h
   - try:
     - apply:
         file: dolphinscheduler.yaml
     - assert:
+        timeout: 400s
         file: dolphinscheduler-assert.yaml
     cleanup:
     - sleep:
         duration: 10s
+    catch:
+      - sleep:
+          duration: 10s
+      - script:
+          env:
+            - name: NAMESPACE
+              value: ($namespace)
+          content: |
+            set -ex
+            free -h
+            df -h
+            kubectl -n $NAMESPACE get pods
+      # - describe:
+      #     apiVersion: v1
+      #     kind: Pod
+      #     selector: app.kubernetes.io/name=dolphinschedulercluster
+      # - podLogs:
+      #     selector: app.kubernetes.io/name=dolphinschedulercluster
+      #     tail: -1
