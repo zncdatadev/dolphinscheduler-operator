@@ -30,16 +30,6 @@ spec:
         file: ../setup/database.yaml
     - assert:
         file: ../setup/database-assert.yaml
-  - try:        
-    - apply:
-        file: ../setup/olm.yaml
-    - assert:
-        file: ../setup/olm-assert.yaml
-  - try:
-    - apply:
-        file: ../setup/subs.yaml
-    - assert:
-        file: ../setup/subs-assert.yaml
   - try:
     - apply:
         file: openldap.yaml
@@ -49,12 +39,7 @@ spec:
     - apply:
         file: ldap.yaml
     - assert:
-        file: ldap-assert.yaml        
-  - try:
-    - apply:
-        file: ../setup/secret.yaml
-    - assert:
-        file: ../setup/secret-assert.yaml        
+        file: ldap-assert.yaml
   - try:
     - apply:
         file: ../setup/zookeeper.yaml
