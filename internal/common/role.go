@@ -60,7 +60,7 @@ type RoleResourceReconcilersBuilder interface {
 func (r *RoleReconciler) RegisterResources(ctx context.Context) error {
 	for name, roleGroup := range r.Spec.RoleGroups {
 		mergedRoleGroup := r.MergeRoleGroupSpec(&roleGroup)
-		defaultConfig := DefaultConfig(util.Role(r.RoleInfo.RoleName))
+		defaultConfig := DefaultConfig(util.Role(r.RoleInfo.RoleName), r.Client.GetOwnerName())
 		mergedCfg := mergedRoleGroup.(*dolphinv1alpha1.RoleGroupSpec)
 		// merge default config to the provided config
 		defaultConfig.Merge(mergedCfg)
