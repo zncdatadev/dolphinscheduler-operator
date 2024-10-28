@@ -14,15 +14,6 @@ spec:
         file: ../setup/database.yaml
     - assert:
         file: ../setup/database-assert.yaml
-    - apply:
-        file: ../setup/olm.yaml
-    - assert:
-        file: ../setup/olm-assert.yaml
-  - try:
-    - apply:
-        file: ../setup/subs.yaml
-    - assert:
-        file: ../setup/subs-assert.yaml
   - try:
     - apply:
         file: ../setup/zookeeper.yaml
