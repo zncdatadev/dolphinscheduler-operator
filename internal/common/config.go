@@ -11,8 +11,10 @@ import (
 	"github.com/zncdatadev/dolphinscheduler-operator/pkg/config"
 	"github.com/zncdatadev/dolphinscheduler-operator/pkg/util"
 	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
+	"github.com/zncdatadev/operator-go/pkg/constants"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -24,7 +26,7 @@ const (
 
 var _ config.Configuration = &DolphinSchedulerConfig{}
 
-func DefaultConfig(role util.Role) *DolphinSchedulerConfig {
+func DefaultConfig(role util.Role, crName string) *DolphinSchedulerConfig {
 	var cpuMin, cpuMax, memoryLimit, storage resource.Quantity
 	switch role {
 	case Master:
@@ -67,7 +69,24 @@ func DefaultConfig(role util.Role) *DolphinSchedulerConfig {
 	return &DolphinSchedulerConfig{
 		resources: resources,
 		common: &GeneralNodeConfig{
-			Affinity:                       &corev1.Affinity{}, // TODO
+			Affinity: &corev1.Affinity{
+				PodAntiAffinity: &corev1.PodAntiAffinity{
+					PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
+						{
+							Weight: 70,
+							PodAffinityTerm: corev1.PodAffinityTerm{
+								TopologyKey: "kubernetes.io/hostname",
+								LabelSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										constants.LabelKubernetesInstance:  crName,
+										constants.LabelKubernetesComponent: string(role),
+									},
+								},
+							},
+						},
+					},
+				},
+			}, // TODO: refactor with affinity builder of operator-go in the future, here handled it simplely now.
 			gracefulShutdownTimeoutSeconds: DefaultServerGrace * time.Second,
 		},
 	}
