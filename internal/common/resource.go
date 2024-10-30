@@ -38,7 +38,7 @@ func CreateDeploymentReconciler(
 			Annotations:   roleGroupInfo.GetAnnotations(),
 		},
 		// PodOverrides:     mergedCfg.PodOverrides,
-		CommandOverrides: mergedCfg.CommandOverrides,
+		CommandOverrides: mergedCfg.CliOverrides,
 		EnvOverrides:     mergedCfg.EnvOverrides,
 	}
 	return NewDeploymentReconciler(ctx, mergedCfg, client, stopped, image, options, roleGroupInfo, []corev1.Container{*container}, volumes)
@@ -68,7 +68,7 @@ func CreateStatefulSetReconciler(
 			Annotations:   roleGroupInfo.GetAnnotations(),
 		},
 		// PodOverrides:     mergedCfg.PodOverrides,
-		CommandOverrides: mergedCfg.CommandOverrides,
+		CommandOverrides: mergedCfg.CliOverrides,
 		EnvOverrides:     mergedCfg.EnvOverrides,
 	}
 
