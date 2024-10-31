@@ -338,8 +338,8 @@ func (in *RoleGroupSpec) DeepCopyInto(out *RoleGroupSpec) {
 		*out = new(commonsv1alpha1.PodDisruptionBudgetSpec)
 		**out = **in
 	}
-	if in.CommandOverrides != nil {
-		in, out := &in.CommandOverrides, &out.CommandOverrides
+	if in.CliOverrides != nil {
+		in, out := &in.CliOverrides, &out.CliOverrides
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
@@ -387,8 +387,8 @@ func (in *RoleSpec) DeepCopyInto(out *RoleSpec) {
 		*out = new(commonsv1alpha1.PodDisruptionBudgetSpec)
 		**out = **in
 	}
-	if in.CommandOverrides != nil {
-		in, out := &in.CommandOverrides, &out.CommandOverrides
+	if in.CliOverrides != nil {
+		in, out := &in.CliOverrides, &out.CliOverrides
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
