@@ -349,7 +349,7 @@ HELM = $(shell which helm)
 endif
 endif
 
-HELM_DEPENDS ?=  commons-operator zookeeper-operator secret-operator
+HELM_DEPENDS ?=  commons-operator secret-operator listener-operator zookeeper-operator
 TEST_NAMESPACE = kubedoop-operators
 
 .PHONY: helm-install-depends

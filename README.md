@@ -24,6 +24,7 @@ helm repo add kubedoop https://zncdatadev.github.io/kubedoop-helm-charts/
 
 ```bash
 helm install commons-operator kubedoop/commons-operator
+helm install listener-operator kubedoop/listener-operator
 helm install secret-operator kubedoop/secret-operator
 helm install zookeeper-operator kubedoop/zookeeper-operator
 ```
