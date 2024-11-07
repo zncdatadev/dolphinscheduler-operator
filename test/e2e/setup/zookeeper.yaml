@@ -6,13 +6,6 @@ spec:
   clusterConfig:
     listenerClass: cluster-internal
   server:
-    config:
-      resources:
-        cpu:
-          min: "200m"
-          max: "300m"
-        memory:
-          limit: "512Mi"
     roleGroups:
       default:
         replicas: 1

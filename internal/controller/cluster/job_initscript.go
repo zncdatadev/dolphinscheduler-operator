@@ -27,7 +27,7 @@ func NewJobInitScriptReconciler(
 ) reconciler.ResourceReconciler[builder.JobBuilder] {
 
 	options := builder.WorkloadOptions{
-		Options: builder.Options{
+		Option: builder.Option{
 			ClusterName:   clusterInfo.GetClusterName(),
 			RoleName:      "",
 			RoleGroupName: "",

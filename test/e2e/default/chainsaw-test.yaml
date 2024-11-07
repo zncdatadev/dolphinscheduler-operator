@@ -21,7 +21,7 @@ spec:
         file: ../setup/zookeeper-assert.yaml
     catch:
       - sleep:
-          duration: 5s
+          duration: 10s
       - script:
           env:
             - name: NAMESPACE

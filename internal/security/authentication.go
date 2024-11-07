@@ -200,7 +200,7 @@ func getAuthenticationProvider(
 }
 
 func getOidcProviderHint(oidcProvider *authv1alpha1.OIDCProvider) (hint OIDCIdentityProvierHit, err error) {
-	switch oidcProvider.Provisioner {
+	switch oidcProvider.ProviderHint {
 	case "keycloak":
 		hint = Keycloak
 	case "github":
@@ -208,7 +208,7 @@ func getOidcProviderHint(oidcProvider *authv1alpha1.OIDCProvider) (hint OIDCIden
 	case "oidc":
 		hint = Github // todo:for test only
 	default:
-		err = errors.NewWithDetails("oidc provider hint is not supported", "actual provider hint", oidcProvider.Provisioner)
+		err = errors.NewWithDetails("oidc provider hint is not supported", "actual provider hint", oidcProvider.ProviderHint)
 	}
 	return
 }
