@@ -30,7 +30,7 @@ func CreateDeploymentReconciler(
 	}
 	// workload option
 	options := builder.WorkloadOptions{
-		Options: builder.Options{
+		Option: builder.Option{
 			ClusterName:   roleGroupInfo.GetClusterName(),
 			RoleName:      roleGroupInfo.GetRoleName(),
 			RoleGroupName: roleGroupInfo.GetGroupName(),
@@ -38,8 +38,8 @@ func CreateDeploymentReconciler(
 			Annotations:   roleGroupInfo.GetAnnotations(),
 		},
 		// PodOverrides:     mergedCfg.PodOverrides,
-		CommandOverrides: mergedCfg.CliOverrides,
-		EnvOverrides:     mergedCfg.EnvOverrides,
+		CliOverrides: mergedCfg.CliOverrides,
+		EnvOverrides: mergedCfg.EnvOverrides,
 	}
 	return NewDeploymentReconciler(ctx, mergedCfg, client, stopped, image, options, roleGroupInfo, []corev1.Container{*container}, volumes)
 }
@@ -60,7 +60,7 @@ func CreateStatefulSetReconciler(
 	}
 	// workload option
 	options := builder.WorkloadOptions{
-		Options: builder.Options{
+		Option: builder.Option{
 			ClusterName:   roleGroupInfo.GetClusterName(),
 			RoleName:      roleGroupInfo.GetRoleName(),
 			RoleGroupName: roleGroupInfo.GetGroupName(),
@@ -68,8 +68,8 @@ func CreateStatefulSetReconciler(
 			Annotations:   roleGroupInfo.GetAnnotations(),
 		},
 		// PodOverrides:     mergedCfg.PodOverrides,
-		CommandOverrides: mergedCfg.CliOverrides,
-		EnvOverrides:     mergedCfg.EnvOverrides,
+		CliOverrides: mergedCfg.CliOverrides,
+		EnvOverrides: mergedCfg.EnvOverrides,
 	}
 
 	var storageSize *resource.Quantity
