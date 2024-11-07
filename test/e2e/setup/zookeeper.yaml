@@ -9,8 +9,8 @@ spec:
     config:
       resources:
         cpu:
-          min: "600m"
-          max: "1000m"
+          min: "200m"
+          max: "300m"
         memory:
           limit: "512Mi"
     roleGroups:
