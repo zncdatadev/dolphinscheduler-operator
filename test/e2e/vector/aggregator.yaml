@@ -8,10 +8,10 @@ spec:
  containers:
    - name: es7
      image: docker.elastic.co/elasticsearch/elasticsearch:7.17.7
-    #  resources:
-    #    limits:
-    #      cpu: 500m
-    #      memory: 1Gi
+     resources:
+       limits:
+         cpu: 200m
+         memory: 1Gi
      env:
        - name: discovery.type
          value: "single-node"
@@ -28,10 +28,10 @@ spec:
          name: http
    - name: kibana7
      image: docker.elastic.co/kibana/kibana:7.17.7
-    #  resources:
-    #    limits:
-    #      cpu: 500m
-    #      memory: 1Gi
+     resources:
+       limits:
+         cpu: 200m
+         memory: 500Mi
      env:
        - name: ELASTICSEARCH_HOSTS
          value: "http://localhost:9200"
@@ -83,7 +83,9 @@ data:
         api_version: auto
         compression: none
         doc_type: _doc
-        endpoints:
+        endpoints:Copilot features might go through different early access stages, which are typically enabled and configured through settings.
+
+
           - http://elasticsearch:9200
         mode: bulk
         # query:

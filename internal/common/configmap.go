@@ -152,7 +152,7 @@ func (l *LogbackXmlGenerator) FileName() string {
 
 // Generate implements config.FileContentGenerator.
 func (l *LogbackXmlGenerator) Generate(ctx context.Context) (string, error) {
-	logGenerator, err := productlogging.NewConfigGenerator(
+	logGenerator, err := NewConfigGenerator(
 		l.loggingSpec,
 		string(l.container),
 		fmt.Sprintf("%s.log4j.xml", l.container),
@@ -161,6 +161,7 @@ func (l *LogbackXmlGenerator) Generate(ctx context.Context) (string, error) {
 			cgo.ConsoleHandlerFormatter = ptr.To(dolphinv1alpha1.ConsoleConversionPattern)
 		},
 	)
+
 	if err != nil {
 		return "", err
 	}
