@@ -15,6 +15,7 @@ import (
 	"github.com/zncdatadev/operator-go/pkg/client"
 	"github.com/zncdatadev/operator-go/pkg/productlogging"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -151,10 +152,21 @@ func (l *LogbackXmlGenerator) FileName() string {
 
 // Generate implements config.FileContentGenerator.
 func (l *LogbackXmlGenerator) Generate(ctx context.Context) (string, error) {
-	logfileName := fmt.Sprintf("%s.log4j.xml", l.container)
-	logbakcConfigGenerator := productlogging.NewLogbackConfigGenerator(l.loggingSpec, string(l.container),
-		dolphinv1alpha1.ConsoleConversionPattern, nil, logfileName, l.FileName())
-	return logbakcConfigGenerator.Generate(), nil
+	logGenerator, err := NewConfigGenerator(
+		l.loggingSpec,
+		string(l.container),
+		fmt.Sprintf("%s.log4j.xml", l.container),
+		productlogging.LogTypeLogback,
+		func(cgo *productlogging.ConfigGeneratorOption) {
+			cgo.ConsoleHandlerFormatter = ptr.To(dolphinv1alpha1.ConsoleConversionPattern)
+		},
+	)
+
+	if err != nil {
+		return "", err
+	}
+	return logGenerator.Content()
+
 }
 
 // ----------- env configmap data generator -----------

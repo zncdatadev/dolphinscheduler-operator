@@ -32,13 +32,6 @@ spec:
       containers:
       - name: postgresql
         image: postgres:13.4
-        resources:
-          requests:
-            cpu: 200m
-            memory: 526Mi
-          limits:
-            cpu: 300m
-            memory: 526Mi
         env:
         - name: POSTGRES_USER
           value: ($POSTGRESQL_USERNAME)

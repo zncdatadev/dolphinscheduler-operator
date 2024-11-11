@@ -117,7 +117,7 @@ func (in *ConfigSpec) DeepCopyInto(out *ConfigSpec) {
 	if in.PodDisruptionBudget != nil {
 		in, out := &in.PodDisruptionBudget, &out.PodDisruptionBudget
 		*out = new(commonsv1alpha1.PodDisruptionBudgetSpec)
-		**out = **in
+		(*in).DeepCopyInto(*out)
 	}
 	if in.GracefulShutdownTimeout != nil {
 		in, out := &in.GracefulShutdownTimeout, &out.GracefulShutdownTimeout
@@ -336,7 +336,7 @@ func (in *RoleGroupSpec) DeepCopyInto(out *RoleGroupSpec) {
 	if in.PodDisruptionBudget != nil {
 		in, out := &in.PodDisruptionBudget, &out.PodDisruptionBudget
 		*out = new(commonsv1alpha1.PodDisruptionBudgetSpec)
-		**out = **in
+		(*in).DeepCopyInto(*out)
 	}
 	if in.CliOverrides != nil {
 		in, out := &in.CliOverrides, &out.CliOverrides
@@ -385,7 +385,7 @@ func (in *RoleSpec) DeepCopyInto(out *RoleSpec) {
 	if in.PodDisruptionBudget != nil {
 		in, out := &in.PodDisruptionBudget, &out.PodDisruptionBudget
 		*out = new(commonsv1alpha1.PodDisruptionBudgetSpec)
-		**out = **in
+		(*in).DeepCopyInto(*out)
 	}
 	if in.CliOverrides != nil {
 		in, out := &in.CliOverrides, &out.CliOverrides
