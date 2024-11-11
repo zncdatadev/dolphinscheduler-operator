@@ -10,6 +10,10 @@ spec:
     value: test
   steps:
   - try:
+    # - apply:
+    #     file: elasticsearch-sink.yaml
+    # - assert:
+    #     file: elasticsearch-sink-assert.yaml
     - apply:
         file: aggregator.yaml
     - assert:
@@ -32,3 +36,20 @@ spec:
     cleanup:
     - sleep:
         duration: 10s
+    catch:
+      - sleep:
+          duration: 5s
+      - script:
+          env:
+            - name: NAMESPACE
+              value: ($namespace)
+          content: |
+            set -ex
+            kubectl -n $NAMESPACE get pods
+      - describe:
+          apiVersion: v1
+          kind: Pod
+          selector: app.kubernetes.io/instance=test-dolphinscheduler
+      - podLogs:
+          selector: app.kubernetes.io/instance=test-dolphinscheduler
+          tail: -1
