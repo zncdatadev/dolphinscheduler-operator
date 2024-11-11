@@ -15,7 +15,7 @@ require (
 	sigs.k8s.io/controller-runtime v0.19.1
 )
 
-require github.com/zncdatadev/operator-go v0.10.1-0.20240925035110-e652b0cf7907
+require github.com/zncdatadev/operator-go v0.11.2
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
