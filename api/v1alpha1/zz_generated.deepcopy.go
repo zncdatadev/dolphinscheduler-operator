@@ -382,9 +382,9 @@ func (in *RoleSpec) DeepCopyInto(out *RoleSpec) {
 			(*out)[key] = *val.DeepCopy()
 		}
 	}
-	if in.PodDisruptionBudget != nil {
-		in, out := &in.PodDisruptionBudget, &out.PodDisruptionBudget
-		*out = new(commonsv1alpha1.PodDisruptionBudgetSpec)
+	if in.RoleConfig != nil {
+		in, out := &in.RoleConfig, &out.RoleConfig
+		*out = new(commonsv1alpha1.RoleConfigSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.CliOverrides != nil {

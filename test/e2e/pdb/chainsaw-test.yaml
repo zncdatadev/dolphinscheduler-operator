@@ -1,0 +1,74 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: pdb
+spec:
+  bindings:
+  - name: POSTGRESQL_USERNAME
+    value: test
+  - name: POSTGRESQL_PASSWORD
+    value: test
+  steps:
+  - try:
+    - apply:
+        file: ../setup/database.yaml
+    - assert:
+        file: ../setup/database-assert.yaml
+  - try:
+    - apply:
+        file: ../setup/zookeeper.yaml
+    - assert:
+        file: ../setup/zookeeper-assert.yaml
+    catch:
+      - sleep:
+          duration: 10s
+      - script:
+          env:
+            - name: NAMESPACE
+              value: ($namespace)
+          content: |
+            set -ex
+            kubectl -n $NAMESPACE get pods
+      - describe:
+          apiVersion: v1
+          kind: Pod
+          selector: app.kubernetes.io/instance=test-zk
+      - podLogs:
+          selector: app.kubernetes.io/name=zookeeper-operator
+          tail: -1
+  - try:
+    - script:
+        content: |
+          set -ex
+          free -h
+          df -h
+  - try:
+    - apply:
+        file: dolphinscheduler.yaml
+    - assert:
+        timeout: 400s
+        file: dolphinscheduler-assert.yaml
+    - assert:
+        file: pdb-assert.yaml
+    cleanup:
+    - sleep:
+        duration: 10s
+    catch:
+      - sleep:
+          duration: 10s
+      - script:
+          env:
+            - name: NAMESPACE
+              value: ($namespace)
+          content: |
+            set -ex
+            free -h
+            df -h
+            kubectl -n $NAMESPACE get pods
+      # - describe:
+      #     apiVersion: v1
+      #     kind: Pod
+      #     selector: app.kubernetes.io/name=dolphinschedulercluster
+      # - podLogs:
+      #     selector: app.kubernetes.io/name=dolphinschedulercluster
+      #     tail: -1

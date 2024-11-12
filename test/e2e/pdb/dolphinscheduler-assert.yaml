@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-dolphinscheduler-master-default
+status:
+  replicas: 1
+  availableReplicas: 1
+  readyReplicas: 1
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-dolphinscheduler-worker-default
+status:
+  replicas: 1
+  availableReplicas: 1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-dolphinscheduler-api-default
+status:
+  replicas: 1
+  availableReplicas: 1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-dolphinscheduler-alert-default
+status:
+  replicas: 1
+  availableReplicas: 1
