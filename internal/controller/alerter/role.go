@@ -45,11 +45,11 @@ func (a *AlerterRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.C
 	mergedCfg *dolphinv1alpha1.RoleGroupSpec) []reconciler.Reconciler {
 	var reconcilers []reconciler.Reconciler
 
-	//Configmap
+	// Configmap
 	workerConfigMap := common.NewConfigMapReconciler(ctx, a.client, roleGroupInfo, MainContainerName, mergedCfg)
 	reconcilers = append(reconcilers, workerConfigMap)
 
-	//deployment
+	// deployment
 	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo, mergedCfg).CommonCommandArgs().
 		WithPorts(util.SortedMap{
 			dolphinv1alpha1.AlerterPortName:       dolphinv1alpha1.AlerterPort,
@@ -62,7 +62,7 @@ func (a *AlerterRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.C
 	dep := common.CreateDeploymentReconciler(containerBuilder, ctx, a.client, a.image, a.clusterOperation, roleGroupInfo, mergedCfg, a.zkConfigMapName, nil)
 	reconcilers = append(reconcilers, dep)
 
-	//svc
+	// svc
 	svc := common.NewServiceReconciler(a.client, common.RoleGroupServiceName(roleGroupInfo), false, nil, map[string]int32{
 		dolphinv1alpha1.AlerterPortName:       dolphinv1alpha1.AlerterPort,
 		dolphinv1alpha1.AlerterActualPortName: dolphinv1alpha1.AlerterActualPort,

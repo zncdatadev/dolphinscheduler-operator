@@ -133,5 +133,5 @@ func AddLdapCredintialsVolumesAndVolumeMounts(bindCredentials commonsv1alpha1.Cr
 		MountPath: path.Join(constants.KubedoopSecretDir, dolphinv1alpha1.LdapBindCredintialsVolumeName),
 		ReadOnly:  true,
 	}
-	return
+	return ldapSecretVolume, ldapSecretVolumeMount
 }

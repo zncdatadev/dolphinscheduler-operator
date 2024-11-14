@@ -8,7 +8,7 @@ import (
 
 func ToProperties(properties map[string]string) string {
 	var sb strings.Builder
-	//sort properties
+	// sort properties
 	keys := maps.Keys(properties)
 	sortKeys := slices.Sorted(keys)
 

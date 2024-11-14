@@ -52,11 +52,11 @@ func (a *ApierRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Con
 	mergedCfg *dolphinv1alpha1.RoleGroupSpec) []reconciler.Reconciler {
 	var reconcilers []reconciler.Reconciler
 
-	//Configmap
+	// Configmap
 	apiServerConfigMap := common.NewConfigMapReconciler(ctx, a.client, roleGroupInfo, MainContainerName, mergedCfg)
 	reconcilers = append(reconcilers, apiServerConfigMap)
 
-	//deployment
+	// deployment
 	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo, mergedCfg).CommonCommandArgs().
 		WithPorts(util.SortedMap{
 			dolphinv1alpha1.ApiPortName:       dolphinv1alpha1.ApiPort,
@@ -74,7 +74,7 @@ func (a *ApierRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Con
 	dep := common.CreateDeploymentReconciler(containerBuilder, ctx, a.client, a.image, a.clusterOperation, roleGroupInfo, mergedCfg, a.zkConfigMapName, volumes)
 	reconcilers = append(reconcilers, dep)
 
-	//svc
+	// svc
 	svc := common.NewServiceReconciler(a.client, common.RoleGroupServiceName(roleGroupInfo), false, nil, map[string]int32{
 		dolphinv1alpha1.ApiPortName:       dolphinv1alpha1.ApiPort,
 		dolphinv1alpha1.ApiPythonPortName: dolphinv1alpha1.ApiPythonPort,
@@ -96,12 +96,12 @@ func (a *ApierRoleResourceReconcilerBuilder) authentication(
 	authSpec []dolphinv1alpha1.AuthenticationSpec,
 	containerBuilder *common.ContainerBuilder) (volumes []corev1.Volume, err error) {
 	if a.authenticationSpec == nil {
-		return
+		return volumes, err
 	}
 	var authResult security.AuthenticationResult
 	authResult, err = security.Authentication(ctx, client, authSpec)
 	if err != nil {
-		return
+		return volumes, err
 	}
 	// add authentication envs
 	authEnvs := authResult.Config
@@ -119,11 +119,11 @@ func (a *ApierRoleResourceReconcilerBuilder) authentication(
 
 	// ldap volume and volume mount
 	if authResult.LdapVolume != nil && authResult.LdapVolumeMount != nil {
-		containerBuilder.WithVolumeMounts(util.SortedMap{authResult.LdapVolume.Name: authResult.LdapVolumeMount.MountPath}) //with ldap volume mount
+		containerBuilder.WithVolumeMounts(util.SortedMap{authResult.LdapVolume.Name: authResult.LdapVolumeMount.MountPath}) // with ldap volume mount
 		containerBuilder.ResetCommandArgs(a.apiServerCommandArgs(containerBuilder))                                         // with ldap user credentials into command args
-		volumes = append(volumes, *authResult.LdapVolume)                                                                   //with ldap volume
+		volumes = append(volumes, *authResult.LdapVolume)                                                                   // with ldap volume
 	}
-	return
+	return volumes, err
 }
 
 // insert ldap user credentials into command args, by export the env

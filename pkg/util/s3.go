@@ -60,9 +60,12 @@ func (s *S3ConfigExtractor) GetS3Config(ctx context.Context) (s3info *S3Config, 
 }
 
 // get s3 connection info from inline
-func (s *S3ConfigExtractor) GetS3ConfigFromConnectionInline(ctx context.Context, connRef *s3v1alpha1.S3BucketConnectionSpec) (s3Info *S3Config, err error) {
+func (s *S3ConfigExtractor) GetS3ConfigFromConnectionInline(
+	ctx context.Context,
+	connRef *s3v1alpha1.S3BucketConnectionSpec) (s3Info *S3Config, err error) {
 	if connInline := connRef.Inline; connInline == nil {
-		err = errors.NewWithDetails("S3 connection inline and reference name cannot be both nil", "S3Spec", s.S3Spec, "namespace", s.Namespace)
+		err = errors.NewWithDetails("S3 connection inline and reference name cannot be both nil",
+			"S3Spec", s.S3Spec, "namespace", s.Namespace)
 		return
 	} else {
 		s3Info, err = s.GetS3ConfigFromConnectionSpec(ctx, connInline)
@@ -71,11 +74,14 @@ func (s *S3ConfigExtractor) GetS3ConfigFromConnectionInline(ctx context.Context,
 }
 
 // create s3 info with s3v1alpha1.S3ConnectionSpec
-func (s *S3ConfigExtractor) GetS3ConfigFromConnectionSpec(ctx context.Context, connSpec *s3v1alpha1.S3ConnectionSpec) (s3Info *S3Config, err error) {
+func (s *S3ConfigExtractor) GetS3ConfigFromConnectionSpec(
+	ctx context.Context,
+	connSpec *s3v1alpha1.S3ConnectionSpec) (s3Info *S3Config, err error) {
 	var accessKey, secretKey string
 	accessKey, secretKey, err = s.GetS3SecretData(ctx, connSpec.Credentials)
 	if err != nil {
-		err = errors.WrapWithDetails(err, "failed to get s3 secret data", "credentials", connSpec.Credentials, "namespace", s.Namespace)
+		err = errors.WrapWithDetails(err, "failed to get s3 secret data", "credentials",
+			connSpec.Credentials, "namespace", s.Namespace)
 		return
 	}
 	s3Info = &S3Config{
@@ -89,9 +95,12 @@ func (s *S3ConfigExtractor) GetS3ConfigFromConnectionSpec(ctx context.Context, c
 }
 
 // get s3 connection info from reference bane
-func (s *S3ConfigExtractor) GetS3ConfigFromConnectionReferenceName(ctx context.Context, connRefName string) (s3Info *S3Config, err error) {
+func (s *S3ConfigExtractor) GetS3ConfigFromConnectionReferenceName(
+	ctx context.Context,
+	connRefName string) (s3Info *S3Config, err error) {
 	if connRefName == "" {
-		err = errors.NewWithDetails("S3 connection reference name cannot be empty", "S3Spec", s.S3Spec, "namespace", s.Namespace)
+		err = errors.NewWithDetails("S3 connection reference name cannot be empty", "S3Spec",
+			s.S3Spec, "namespace", s.Namespace)
 		return
 	}
 
@@ -104,7 +113,8 @@ func (s *S3ConfigExtractor) GetS3ConfigFromConnectionReferenceName(ctx context.C
 
 	err = s.client.GetWithObject(ctx, s3Conn)
 	if err != nil {
-		err = errors.WrapWithDetails(err, "failed to get s3 connection with connection reference name", "ref name", connRefName, "namespace", s.Namespace)
+		err = errors.WrapWithDetails(err, "failed to get s3 connection with connection reference name",
+			"ref name", connRefName, "namespace", s.Namespace)
 		return
 	}
 
@@ -128,7 +138,7 @@ func (s *S3ConfigExtractor) GetS3SecretData(ctx context.Context,
 		err = errors.New("S3 credentials cannot be nil")
 		return
 	}
-	//TODO: credential.Scope
+	// TODO: credential.Scope
 	name := creditial.SecretClass
 	if name == "" {
 		err = errors.New("S3 secret class cannot be empty")
