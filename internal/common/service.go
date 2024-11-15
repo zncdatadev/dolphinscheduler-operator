@@ -24,7 +24,7 @@ func NewServiceReconciler(
 func NewServiceBuilder(client *client.Client, name string, headless bool, serviceType *corev1.ServiceType,
 	portMap map[string]int32, lables map[string]string, annotations map[string]string) builder.ServiceBuilder {
 	var sortedPortMap util.SortedMap = make(map[string]interface{})
-	//ports
+	// ports
 	for k, v := range portMap {
 		sortedPortMap[k] = v
 	}
@@ -42,7 +42,7 @@ func NewServiceBuilder(client *client.Client, name string, headless bool, servic
 		return true
 	})
 
-	//listener class
+	// listener class
 	if serviceType == nil {
 		serviceType = ptr.To(corev1.ServiceTypeClusterIP)
 	}

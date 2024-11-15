@@ -51,11 +51,11 @@ func (a *MasterRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Co
 	masterConfigMap := common.NewConfigMapReconciler(ctx, a.client, roleGroupInfo, MainContainerName, mergedCfg)
 	reconcilers = append(reconcilers, masterConfigMap)
 
-	//env from configmap
+	// env from configmap
 	envFromConfigMap := common.NewEnvConfigMapReconciler(ctx, a.client, mergedCfg, roleGroupInfo)
 	reconcilers = append(reconcilers, envFromConfigMap)
 
-	//statefulset
+	// statefulset
 	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo, mergedCfg).CommonCommandArgs().
 		WithPorts(util.SortedMap{
 			dolphinv1alpha1.MasterPortName:       dolphinv1alpha1.MasterPort,
@@ -87,7 +87,7 @@ func (a *MasterRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Co
 		a.zkConfigMapName, "")
 	reconcilers = append(reconcilers, sts)
 
-	//svc
+	// svc
 	svc := common.NewServiceReconciler(a.client, common.RoleGroupServiceName(roleGroupInfo), true, nil, map[string]int32{
 		dolphinv1alpha1.MasterPortName:       dolphinv1alpha1.MasterPort,
 		dolphinv1alpha1.MasterActualPortName: dolphinv1alpha1.MasterActualPort,

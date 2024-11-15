@@ -47,11 +47,11 @@ func (a *WorkerRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Co
 	mergedCfg *dolphinv1alpha1.RoleGroupSpec) []reconciler.Reconciler {
 	var reconcilers []reconciler.Reconciler
 
-	//common.properties, logback.xml Configmap
+	// common.properties, logback.xml Configmap
 	workerConfigMap := common.NewConfigMapReconciler(ctx, a.client, roleGroupInfo, MainContainerName, mergedCfg)
 	reconcilers = append(reconcilers, workerConfigMap)
 
-	//statefulset
+	// statefulset
 	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo, mergedCfg).CommonCommandArgs().
 		WithPorts(util.SortedMap{
 			dolphinv1alpha1.WorkerPortName:       dolphinv1alpha1.WorkerPort,
@@ -77,7 +77,7 @@ func (a *WorkerRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Co
 		a.zkConfigMapName, dolphinv1alpha1.WorkerDataVolumeName)
 	reconcilers = append(reconcilers, dep)
 
-	//svc
+	// svc
 	svc := common.NewServiceReconciler(a.client, common.RoleGroupServiceName(roleGroupInfo), true, nil, map[string]int32{
 		dolphinv1alpha1.WorkerPortName:       dolphinv1alpha1.WorkerPort,
 		dolphinv1alpha1.WorkerActualPortName: dolphinv1alpha1.WorkerActualPort,

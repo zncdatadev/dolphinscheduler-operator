@@ -32,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	//+kubebuilder:scaffold:imports
+	// +kubebuilder:scaffold:imports
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -53,7 +53,12 @@ func TestReconciler(t *testing.T) {
 	}
 	if asserts := os.Getenv("KUBEBUILDER_ASSETS"); asserts == "" {
 		logf.Log.Info("KUBEBUILDER_ASSETS is not set, using default version " + testK8sVersion)
-		os.Setenv("KUBEBUILDER_ASSETS", filepath.Join("..", "..", "bin", "k8s", fmt.Sprintf("%s-%s-%s", testK8sVersion, runtime.GOOS, runtime.GOARCH)))
+		err := os.Setenv("KUBEBUILDER_ASSETS", filepath.Join("..", "..", "bin", "k8s",
+			fmt.Sprintf("%s-%s-%s", testK8sVersion, runtime.GOOS, runtime.GOARCH)))
+		if err != nil {
+			logf.Log.Error(err, "Failed to set KUBEBUILDER_ASSETS environment variable")
+			t.FailNow()
+		}
 	}
 
 	RegisterFailHandler(Fail)

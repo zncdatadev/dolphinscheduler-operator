@@ -184,21 +184,21 @@ func (e *EnvConfigmapDataGenerator) Generate(ctx context.Context) (envs map[stri
 	envs = make(map[string]string)
 	maps.Copy(envs, e.mergedConfig.EnvOverrides)
 	if e.databaseSpec == nil {
-		return
+		return envs, err
 	}
 
 	dbInfoExtractor := util.NewDataBaseExtractor(e.client, &e.databaseSpec.ConnectionString).CredentialsInSecret(e.databaseSpec.CredentialsSecret, e.namespace)
 	dbConfig, err := dbInfoExtractor.ExtractDatabaseInfo(ctx)
 	if err != nil {
 		err = errors.WrapWithDetails(err, "failed to get database info", "namespace", e.namespace, "databaseSpec", e.databaseSpec)
-		return
+		return envs, err
 	}
 	maps.Copy(envs, map[string]string{
-		"DATABASE":                            string(dbConfig.DbType),
+		"DATABASE":                            dbConfig.DbType,
 		"SPRING_DATASOURCE_URL":               fmt.Sprintf("jdbc:%s://%s:%s/%s", dbConfig.DbType, dbConfig.Host, dbConfig.Port, dbConfig.DbName),
 		"SPRING_DATASOURCE_USERNAME":          dbConfig.Username,
 		"SPRING_DATASOURCE_PASSWORD":          dbConfig.Password,
 		"SPRING_DATASOURCE_DRIVER-CLASS-NAME": dbConfig.Driver,
 	})
-	return
+	return envs, err
 }

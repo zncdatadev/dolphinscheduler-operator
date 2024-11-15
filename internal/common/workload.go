@@ -189,7 +189,7 @@ func (w *WorkloadBuilder) serviceAccount() string {
 
 // with pvc templates
 func (w *WorkloadBuilder) WithPvcTemplates(pvcName string, storageSize resource.Quantity) *WorkloadBuilder {
-	//assert w is statefulset
+	// assert w is statefulset
 	w.pvcs = []corev1.PersistentVolumeClaim{
 		{
 			ObjectMeta: metav1.ObjectMeta{

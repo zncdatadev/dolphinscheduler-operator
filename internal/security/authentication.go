@@ -46,7 +46,7 @@ type AuthenticationResult struct {
 	// ldap bind credentials secret volume mount
 	LdapVolumeMount *corev1.VolumeMount
 
-	//ldap bind credentials secret name
+	// ldap bind credentials secret name
 	LdapBindCredintialsName string
 }
 
@@ -69,7 +69,7 @@ func Authentication(
 	config, err = createAuthenticationConfig(providers)
 	if err != nil {
 		authenticationLogger.Error(err, "Failed to create AuthenticationConfig")
-		return
+		return result, err
 	}
 
 	// ldap volume and volume mount
@@ -80,7 +80,7 @@ func Authentication(
 		if provider.AuthType == LDAP {
 			if provider.Provider.LDAP == nil || provider.Provider.LDAP.BindCredentials == nil {
 				err = errors.New("ldap provider or bind credentials cannot be nil")
-				return
+				return result, err
 			}
 			volume, volumeMount = AddLdapCredintialsVolumesAndVolumeMounts(*provider.Provider.LDAP.BindCredentials)
 			ldapBindCredentialsName = provider.Provider.LDAP.BindCredentials.SecretClass
@@ -124,16 +124,16 @@ func createAuthenticationConfig(providers []AuthenticationProvider) (config map[
 			}
 		default:
 			err = errors.NewWithDetails("auth type is not supported", "authentication type", authType)
-			return
+			return config, err
 		}
 		var providerHintSecurityConfig map[string]interface{}
 		providerHintSecurityConfig, err = authenticationConfigGenerator.Generate()
 		if err != nil {
-			return
+			return config, err
 		}
 		maps.Copy(config, providerHintSecurityConfig)
 	}
-	return
+	return config, err
 }
 
 func resolveAuthentications(
@@ -214,5 +214,5 @@ func getOidcProviderHint(oidcProvider *authv1alpha1.OIDCProvider) (hint OIDCIden
 }
 
 func isAuthenticationSupported(authType AuthenticationType) bool {
-	return slices.Contains(SUPPORTED_AUTHENTICATION_CLASS_PROVIDERS, AuthenticationType(authType))
+	return slices.Contains(SUPPORTED_AUTHENTICATION_CLASS_PROVIDERS, authType)
 }

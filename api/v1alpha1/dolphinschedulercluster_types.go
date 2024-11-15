@@ -65,8 +65,8 @@ const (
 	AlerterActualPort     = 50053
 )
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // DolphinschedulerCluster is the Schema for the dolphinschedulerclusters API
 type DolphinschedulerCluster struct {
@@ -77,7 +77,7 @@ type DolphinschedulerCluster struct {
 	Status status.Status               `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // DolphinschedulerClusterList contains a list of DolphinschedulerCluster
 type DolphinschedulerClusterList struct {

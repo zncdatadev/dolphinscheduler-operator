@@ -53,7 +53,7 @@ type ContainerBuilder struct {
 // with envs
 // key is env name, value is env value
 func (c *ContainerBuilder) WithEnvs(envMap util.SortedMap) *ContainerBuilder {
-	//convert map to envs
+	// convert map to envs
 	var envs []corev1.EnvVar
 	envMap.Range(func(k string, v interface{}) bool {
 		switch envVal := v.(type) {
@@ -139,7 +139,7 @@ func (c *ContainerBuilder) ResetCommandArgs(script string) *ContainerBuilder {
 // with ports
 // key is port name, value is port
 func (c *ContainerBuilder) WithPorts(portMap util.SortedMap) *ContainerBuilder {
-	//convert map to ports
+	// convert map to ports
 	var ports []corev1.ContainerPort
 	portMap.Range(func(k string, v interface{}) bool {
 		port, err := ToContainerPortInt32(v)

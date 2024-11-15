@@ -134,12 +134,13 @@ func GetDatabaseDriver(dbType string) (string, error) {
 	case "postgresql":
 		return "org.postgresql.Driver", nil
 	default:
-		return "", errors.NewWithDetails("unsupported database type to get driver class", map[string]interface{}{"type": dbType})
+		return "", errors.NewWithDetails("unsupported database type to get driver class",
+			map[string]interface{}{"type": dbType})
 	}
 }
 
 func GetDatabaseHost(connectionString string) (host string, port string) {
-	//eg. jdbc:postgresql://127.0.0.1:5432/dolphinscheduler?user=root&password=root
+	// eg. jdbc:postgresql://127.0.0.1:5432/dolphinscheduler?user=root&password=root
 	hostPort := strings.Split(connectionString, "//")[1]
 	hostPort = strings.Split(hostPort, "/")[0]
 	hosts := strings.Split(hostPort, ":")

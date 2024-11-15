@@ -15,9 +15,9 @@ type Configuration interface {
 	ComputeCli() (map[string]string, error)
 }
 
-//type ConfigGenerator[T string | map[string]string] interface {
+// type ConfigGenerator[T string | map[string]string] interface {
 //	Generate() T
-//}
+// }
 
 // FileContentGenerator generate config
 // we can use this interface to generate config content

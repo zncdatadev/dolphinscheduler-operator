@@ -26,7 +26,7 @@ var _ = Describe("DataBaseExtractor", func() {
 			dbInfo, err := d.ExtractDatabaseInfo(context.Background())
 
 			// then
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			Expect(dbInfo).NotTo(BeNil())
 			Expect(dbInfo.DbType).To(Equal("postgresql"))
 			Expect(dbInfo.Driver).To(Equal("org.postgresql.Driver"))
@@ -47,7 +47,7 @@ var _ = Describe("DataBaseExtractor", func() {
 			dbInfo, err := d.ExtractDatabaseInfo(context.Background())
 
 			// then
-			Expect(err).NotTo(BeNil())
+			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("connection string is empty"))
 			Expect(dbInfo).To(BeNil())
 		})

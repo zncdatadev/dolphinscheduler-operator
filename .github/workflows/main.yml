@@ -53,8 +53,7 @@ jobs:
           cache: false
       - name: golangci-lint
         run: |
-          make lint 
-
+          make lint
 
   chainsaw-test:
     name: Chainsaw Test
@@ -74,7 +73,7 @@ jobs:
         # this might remove tools that are actually needed,
         # if set to "true" but frees about 6 GB
         tool-cache: false
-        
+
         # all of these default to true, but feel free to set to
         # "false" if necessary for your workflow
         android: true
@@ -82,13 +81,13 @@ jobs:
         haskell: true
         large-packages: true
         docker-images: true
-        swap-storage: true        
+        swap-storage: true
     - name: Create KinD clustet pur
       env:
         KINDTEST_K8S_VERSION: ${{ matrix.k8s-version}}
         KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
         KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
-      run: make kind-create      
+      run: make kind-create
     - name: Chainsaw test setup
       env:
         KINDTEST_K8S_VERSION: ${{ matrix.k8s-version }}
@@ -101,7 +100,6 @@ jobs:
         KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
         KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
       run: make chainsaw-test
-
 
   deploy-operator:
     name: Deploy operator
@@ -127,10 +125,3 @@ jobs:
         registry: quay.io
         username: ${{ secrets.QUAY_USERNAME }}
         password: ${{ secrets.QUAY_PASSWORD }}
-    - name: Build and push operator
-      run: |
-        make docker-buildx
-    - name: Build and push operator bundle
-      run: |
-        make bundle
-        make bundle-buildx

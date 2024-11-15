@@ -213,7 +213,7 @@ func (c *DolphinSchedulerConfig) Merge(mergedCfg *dolphinv1alpha1.RoleGroupSpec)
 		}
 	}
 
-	//affinity
+	// affinity
 	if mergedCfg.Config.Affinity == nil {
 		mergedCfg.Config.Affinity = c.common.Affinity
 	}
