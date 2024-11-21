@@ -1,4 +1,4 @@
-apiVersion: authentication.zncdata.dev/v1alpha1
+apiVersion: authentication.kubedoop.dev/v1alpha1
 kind: AuthenticationClass
 metadata:
   name: ldap
@@ -8,7 +8,7 @@ kind: Secret
 metadata:
   name: ldap-credentials
 ---
-apiVersion: secrets.zncdata.dev/v1alpha1
+apiVersion: secrets.kubedoop.dev/v1alpha1
 kind: SecretClass
 metadata:
   name: ldap-credentials

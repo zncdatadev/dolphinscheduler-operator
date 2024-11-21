@@ -41,7 +41,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - authentication.zncdata.dev
+  - authentication.kubedoop.dev
   resources:
   - authenticationclasses
   verbs:
@@ -61,7 +61,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - dolphinscheduler.zncdata.dev
+  - dolphinscheduler.kubedoop.dev
   resources:
   - dolphinschedulerclusters
   verbs:
@@ -73,13 +73,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - dolphinscheduler.zncdata.dev
+  - dolphinscheduler.kubedoop.dev
   resources:
   - dolphinschedulerclusters/finalizers
   verbs:
   - update
 - apiGroups:
-  - dolphinscheduler.zncdata.dev
+  - dolphinscheduler.kubedoop.dev
   resources:
   - dolphinschedulerclusters/status
   verbs:
@@ -112,7 +112,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - secrets.zncdata.dev
+  - secrets.kubedoop.dev
   resources:
   - secretclasses
   verbs:

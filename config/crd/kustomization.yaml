@@ -2,7 +2,7 @@
 # since it depends on service name and namespace that are out of this kustomize package.
 # It should be run by config/default
 resources:
-- bases/dolphinscheduler.zncdata.dev_dolphinschedulerclusters.yaml
+- bases/dolphinscheduler.kubedoop.dev_dolphinschedulerclusters.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patches:

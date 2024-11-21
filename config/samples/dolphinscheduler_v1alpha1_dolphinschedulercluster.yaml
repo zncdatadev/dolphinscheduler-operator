@@ -1,4 +1,4 @@
-apiVersion: dolphinscheduler.zncdata.dev/v1alpha1
+apiVersion: dolphinscheduler.kubedoop.dev/v1alpha1
 kind: DolphinschedulerCluster
 metadata:
   labels:

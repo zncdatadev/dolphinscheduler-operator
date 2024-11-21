@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.5
-  name: dolphinschedulerclusters.dolphinscheduler.zncdata.dev
+  name: dolphinschedulerclusters.dolphinscheduler.kubedoop.dev
 spec:
-  group: dolphinscheduler.zncdata.dev
+  group: dolphinscheduler.kubedoop.dev
   names:
     kind: DolphinschedulerCluster
     listKind: DolphinschedulerClusterList
