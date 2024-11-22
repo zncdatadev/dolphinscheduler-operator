@@ -1,10 +1,10 @@
-apiVersion: authentication.zncdata.dev/v1alpha1
+apiVersion: authentication.kubedoop.dev/v1alpha1
 kind: AuthenticationClass
 metadata:
   name: ldap
 spec:
   provider:
-    ldap: 
+    ldap:
       bindCredentials:
         secretClass: ldap-credentials
         # scope:
@@ -22,13 +22,13 @@ kind: Secret
 metadata:
   name: ldap-credentials
   labels:
-    secrets.zncdata.dev/class: ldap-credentials
+    secrets.kubedoop.dev/class: ldap-credentials
 type: Opaque
 stringData:
   user: ($DOLPHIN_LDAP_SERVICE_USER)
   password: ($DOLPHIN_LDAP_SERVICE_PASSWORD)
 ---
-apiVersion: secrets.zncdata.dev/v1alpha1
+apiVersion: secrets.kubedoop.dev/v1alpha1
 kind: SecretClass
 metadata:
   name: ldap-credentials

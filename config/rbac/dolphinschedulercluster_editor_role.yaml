@@ -12,7 +12,7 @@ metadata:
   name: dolphinschedulercluster-editor-role
 rules:
 - apiGroups:
-  - dolphinscheduler.zncdata.dev
+  - dolphinscheduler.kubedoop.dev
   resources:
   - dolphinschedulerclusters
   verbs:
@@ -24,7 +24,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - dolphinscheduler.zncdata.dev
+  - dolphinscheduler.kubedoop.dev
   resources:
   - dolphinschedulerclusters/status
   verbs:

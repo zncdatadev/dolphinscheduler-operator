@@ -17,7 +17,7 @@ func NewServiceReconciler(
 	ports map[string]int32, labels, annotations map[string]string) *reconciler.Service {
 	b := NewServiceBuilder(cli, name, headless, serviceType, ports, labels, annotations)
 	return &reconciler.Service{
-		GenericResourceReconciler: *reconciler.NewGenericResourceReconciler(cli, name, b),
+		GenericResourceReconciler: *reconciler.NewGenericResourceReconciler(cli, b),
 	}
 }
 
@@ -52,7 +52,7 @@ func NewServiceBuilder(client *client.Client, name string, headless bool, servic
 		return nil
 	}
 
-	b := builder.NewServiceBuilder(client, name, ports, func(sbo *builder.ServiceBuilderOption) {
+	b := builder.NewServiceBuilder(client, name, ports, func(sbo *builder.ServiceBuilderOptions) {
 		sbo.Labels = lables
 		sbo.Annotations = annotations
 		sbo.Headless = headless

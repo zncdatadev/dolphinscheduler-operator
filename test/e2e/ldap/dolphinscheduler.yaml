@@ -1,4 +1,4 @@
-apiVersion: zookeeper.zncdata.dev/v1alpha1
+apiVersion: zookeeper.kubedoop.dev/v1alpha1
 kind: ZookeeperZnode
 metadata:
   name: test-znode
@@ -6,7 +6,7 @@ spec:
   clusterRef:
     name: test-zk
 ---
-apiVersion: dolphinscheduler.zncdata.dev/v1alpha1
+apiVersion: dolphinscheduler.kubedoop.dev/v1alpha1
 kind: DolphinschedulerCluster
 metadata:
   name: test-dolphinscheduler

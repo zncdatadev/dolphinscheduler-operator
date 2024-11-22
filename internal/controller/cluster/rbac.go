@@ -13,9 +13,11 @@ func NewServiceAccountReconciler(
 	lables map[string]string,
 	annotations map[string]string,
 ) reconciler.ResourceReconciler[*builder.GenericServiceAccountBuilder] {
-	saName := builder.ServiceAccountName(dolphinv1alpha1.DefaultProductName)
-	saBuilder := builder.NewGenericServiceAccountBuilder(&client, saName, lables, nil)
-	return reconciler.NewGenericResourceReconciler(&client, saName, saBuilder)
+	saName := dolphinv1alpha1.DefaultProductName
+	saBuilder := builder.NewGenericServiceAccountBuilder(&client, saName, func(o *builder.Options) {
+		o.Labels = lables
+	})
+	return reconciler.NewGenericResourceReconciler(&client, saBuilder)
 }
 
 func NewRoleReconciler(
@@ -23,8 +25,10 @@ func NewRoleReconciler(
 	lables map[string]string,
 	annotations map[string]string,
 ) reconciler.ResourceReconciler[*builder.GenericRoleBuilder] {
-	roleName := builder.RoleName(dolphinv1alpha1.DefaultProductName)
-	roleBuilder := builder.NewGenericRoleBuilder(&client, roleName, lables, nil)
+	roleName := dolphinv1alpha1.DefaultProductName
+	roleBuilder := builder.NewGenericRoleBuilder(&client, roleName, func(o *builder.Options) {
+		o.Labels = lables
+	})
 	roleBuilder.AddPolicyRules([]rbacv1.PolicyRule{
 		{
 			Verbs:     []string{"get", "list", "watch"},
@@ -32,7 +36,7 @@ func NewRoleReconciler(
 			Resources: []string{"configmaps"},
 		},
 	})
-	return reconciler.NewGenericResourceReconciler(&client, roleName, roleBuilder)
+	return reconciler.NewGenericResourceReconciler(&client, roleBuilder)
 }
 
 func NewRoleBindingReconciler(
@@ -40,9 +44,11 @@ func NewRoleBindingReconciler(
 	lables map[string]string,
 	annotations map[string]string,
 ) reconciler.ResourceReconciler[*builder.GenericRoleBindingBuilder] {
-	roleBindingName := builder.RoleBindingName(dolphinv1alpha1.DefaultProductName)
-	roleBindingBuilder := builder.NewGenericRoleBindingBuilder(&client, roleBindingName, lables, nil)
-	roleBindingBuilder.AddSubject(builder.ServiceAccountName(dolphinv1alpha1.DefaultProductName))
-	roleBindingBuilder.SetRoleRef(builder.RoleName(dolphinv1alpha1.DefaultProductName), false)
-	return reconciler.NewGenericResourceReconciler(&client, roleBindingName, roleBindingBuilder)
+	roleBindingName := dolphinv1alpha1.DefaultProductName
+	roleBindingBuilder := builder.NewGenericRoleBindingBuilder(&client, roleBindingName, func(o *builder.Options) {
+		o.Labels = lables
+	})
+	roleBindingBuilder.AddSubject(dolphinv1alpha1.DefaultProductName)
+	roleBindingBuilder.SetRoleRef(dolphinv1alpha1.DefaultProductName, false)
+	return reconciler.NewGenericResourceReconciler(&client, roleBindingBuilder)
 }

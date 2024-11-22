@@ -26,21 +26,22 @@ func NewJobInitScriptReconciler(
 	clusterConfigSpec *dolphinv1alpha1.ClusterConfigSpec,
 ) reconciler.ResourceReconciler[builder.JobBuilder] {
 
-	options := builder.WorkloadOptions{
-		Option: builder.Option{
-			ClusterName:   clusterInfo.GetClusterName(),
-			RoleName:      "",
-			RoleGroupName: "",
-			Labels:        clusterInfo.GetLabels(),
-			Annotations:   clusterInfo.GetAnnotations(),
-		},
-	}
-	b := builder.NewGenericJobBuilder(client, client.GetOwnerName(), image, options)
+	b := builder.NewGenericJobBuilder(
+		client,
+		client.GetOwnerName(),
+		image,
+		nil,
+		nil,
+		func(o *builder.Options) {
+			o.ClusterName = clusterInfo.GetClusterName()
+			o.Labels = clusterInfo.GetLabels()
+			o.Annotations = clusterInfo.GetAnnotations()
+		})
 	b.SetRestPolicy(ptr.To(corev1.RestartPolicyNever))
 	b.AddInitContainer(waitForDatabase(clusterConfigSpec.Database.ConnectionString))
 	b.AddContainer(initDatabase(clusterConfigSpec.ZookeeperConfigMapName, image, clusterInfo))
 	b.SetSecurityContext(1001, 1001, false)
-	return reconciler.NewJob(client, client.GetOwnerName(), b)
+	return reconciler.NewJob(client, b)
 }
 
 func waitForDatabase(connectionString string) *corev1.Container {

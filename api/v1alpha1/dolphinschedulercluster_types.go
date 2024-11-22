@@ -20,7 +20,6 @@ import (
 	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	s3v1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/s3/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/status"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -148,19 +147,7 @@ type DatabaseSpec struct {
 	CredentialsSecret string `json:"credentialsSecret,omitempty"`
 }
 
-type ContainerLoggingSpec struct {
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default=false
-	EnableVectorAgent bool `json:"enableVectorAgent,omitempty"`
-	// +kubebuilder:validation:Optional
-	Logging *commonsv1alpha1.LoggingConfigSpec `json:"logging,omitempty"`
-}
-
-type ConfigOverridesSpec struct {
-	CommonProperties map[string]string `json:"common.properties,omitempty"`
-}
 type RoleSpec struct {
-
 	// +kubebuilder:validation:Optional
 	Config *ConfigSpec `json:"config,omitempty"`
 
@@ -170,59 +157,21 @@ type RoleSpec struct {
 	// +kubebuilder:validation:Optional
 	RoleConfig *commonsv1alpha1.RoleConfigSpec `json:"roleConfig,omitempty"`
 
-	// +kubebuilder:validation:Optional
-	CliOverrides []string `json:"cliOverrides,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	ConfigOverrides *ConfigOverridesSpec `json:"configOverrides,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	EnvOverrides map[string]string `json:"envOverrides,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	// PodOverrides *corev1.PodTemplateSpec `json:"podOverrides,omitempty"`
+	*commonsv1alpha1.OverridesSpec `json:",inline"`
 }
 
 type RoleGroupSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=1
-	Replicas int32 `json:"replicas,omitempty"`
+	Replicas *int32 `json:"replicas,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	Config *ConfigSpec `json:"config,omitempty"`
 
-	// +kubebuilder:validation:Optional
-	PodDisruptionBudget *commonsv1alpha1.PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	CliOverrides []string `json:"cliOverrides,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	ConfigOverrides *ConfigOverridesSpec `json:"configOverrides,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	EnvOverrides map[string]string `json:"envOverrides,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	// PodOverrides *corev1.PodTemplateSpec `json:"podOverrides,omitempty"`
+	*commonsv1alpha1.OverridesSpec `json:",inline"`
 }
-
 type ConfigSpec struct {
-	// +kubebuilder:validation:Optional
-	Resources *commonsv1alpha1.ResourcesSpec `json:"resources,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	Affinity *corev1.Affinity `json:"affinity"`
-
-	// +kubebuilder:validation:Optional
-	PodDisruptionBudget *commonsv1alpha1.PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
-
-	// Use time.ParseDuration to parse the string
-	// +kubebuilder:validation:Optional
-	GracefulShutdownTimeout *string `json:"gracefulShutdownTimeout,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	Logging *ContainerLoggingSpec `json:"logging,omitempty"`
+	*commonsv1alpha1.RoleGroupConfigSpec `json:",inline"`
 }
 
 func init() {

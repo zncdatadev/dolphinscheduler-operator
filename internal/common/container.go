@@ -7,6 +7,7 @@ import (
 	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdatadev/dolphinscheduler-operator/pkg/constant"
 	"github.com/zncdatadev/dolphinscheduler-operator/pkg/util"
+	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	opgoutil "github.com/zncdatadev/operator-go/pkg/util"
@@ -21,13 +22,13 @@ func NewContainerBuilder(
 	image *opgoutil.Image,
 	zookeeperConfigMapName string,
 	roleGroupInfo *reconciler.RoleGroupInfo,
-	mergedConfig *dolphinv1alpha1.RoleGroupSpec,
+	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
 ) *ContainerBuilder {
 	b := &ContainerBuilder{
 		Container:              builder.NewContainer(string(contaienr), image),
 		ZookeeperConfigMapName: zookeeperConfigMapName,
 		RoleGroupInfo:          roleGroupInfo,
-		MergedConfig:           mergedConfig,
+		RoleGroupConfig:        roleGroupConfig,
 	}
 	b.volumeMounts = b.commonVolumeMounts()
 
@@ -38,7 +39,7 @@ type ContainerBuilder struct {
 	*builder.Container
 	ZookeeperConfigMapName string
 	RoleGroupInfo          *reconciler.RoleGroupInfo
-	MergedConfig           *dolphinv1alpha1.RoleGroupSpec
+	RoleGroupConfig        *commonsv1alpha1.RoleGroupConfigSpec
 
 	secretEnvfrom string
 	envs          []corev1.EnvVar
@@ -249,8 +250,8 @@ func (c *ContainerBuilder) Build() *corev1.Container {
 	if c.secretEnvfrom != "" {
 		c.WithSecretEnvFrom(c.secretEnvfrom)
 	}
-	if c.MergedConfig != nil {
-		c.SetResources(c.MergedConfig.Config.Resources)
+	if c.RoleGroupConfig != nil {
+		c.SetResources(c.RoleGroupConfig.Resources)
 	}
 	return c.Container.Build()
 }

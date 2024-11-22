@@ -3,7 +3,6 @@ package common
 import (
 	"context"
 
-	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
 	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/client"
@@ -18,64 +17,65 @@ func CreateDeploymentReconciler(
 	ctx context.Context,
 	client *client.Client,
 	image *opgoutil.Image,
+	replicas *int32,
 	clusterOperation *commonsv1alpha1.ClusterOperationSpec,
 	roleGroupInfo *reconciler.RoleGroupInfo,
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
-	zkConfigMapName string, volumes []corev1.Volume) reconciler.ResourceReconciler[builder.DeploymentBuilder] {
+	overrides *commonsv1alpha1.OverridesSpec,
+	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
+	zkConfigMapName string,
+	volumes []corev1.Volume) reconciler.ResourceReconciler[builder.DeploymentBuilder] {
 	container := contanerBuilder.Build()
 	// stopped
 	stopped := false
 	if clusterOperation != nil && clusterOperation.Stopped {
 		stopped = true
 	}
-	// workload option
-	options := builder.WorkloadOptions{
-		Option: builder.Option{
-			ClusterName:   roleGroupInfo.GetClusterName(),
-			RoleName:      roleGroupInfo.GetRoleName(),
-			RoleGroupName: roleGroupInfo.GetGroupName(),
-			Labels:        roleGroupInfo.GetLabels(),
-			Annotations:   roleGroupInfo.GetAnnotations(),
-		},
-		// PodOverrides:     mergedCfg.PodOverrides,
-		CliOverrides: mergedCfg.CliOverrides,
-		EnvOverrides: mergedCfg.EnvOverrides,
-	}
-	return NewDeploymentReconciler(ctx, mergedCfg, client, stopped, image, options, roleGroupInfo, []corev1.Container{*container}, volumes)
+	return NewDeploymentReconciler(
+		ctx,
+		client,
+		stopped,
+		image,
+		replicas,
+		roleGroupInfo,
+		overrides,
+		roleGroupConfig,
+		[]corev1.Container{*container},
+		volumes)
+	// return NewDeploymentReconciler(ctx, mergedCfg, client, stopped, image, options, roleGroupInfo, []corev1.Container{*container}, volumes)
 }
 func CreateStatefulSetReconciler(
 	containerBuilder *ContainerBuilder,
 	ctx context.Context,
 	client *client.Client,
 	image *opgoutil.Image,
+	replicas *int32,
 	clusterOperation *commonsv1alpha1.ClusterOperationSpec,
 	roleGroupInfo *reconciler.RoleGroupInfo,
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
-	zkConfigMapName string, pvcName string) reconciler.ResourceReconciler[builder.StatefulSetBuilder] {
+	overrides *commonsv1alpha1.OverridesSpec,
+	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
+	zkConfigMapName string,
+	pvcName string) reconciler.ResourceReconciler[builder.StatefulSetBuilder] {
 	container := containerBuilder.Build()
 	// stopped
 	stopped := false
 	if clusterOperation != nil && clusterOperation.Stopped {
 		stopped = true
 	}
-	// workload option
-	options := builder.WorkloadOptions{
-		Option: builder.Option{
-			ClusterName:   roleGroupInfo.GetClusterName(),
-			RoleName:      roleGroupInfo.GetRoleName(),
-			RoleGroupName: roleGroupInfo.GetGroupName(),
-			Labels:        roleGroupInfo.GetLabels(),
-			Annotations:   roleGroupInfo.GetAnnotations(),
-		},
-		// PodOverrides:     mergedCfg.PodOverrides,
-		CliOverrides: mergedCfg.CliOverrides,
-		EnvOverrides: mergedCfg.EnvOverrides,
-	}
-
 	var storageSize *resource.Quantity
-	resource := mergedCfg.Config.Resources
+	resource := roleGroupConfig.Resources
 	if resource != nil && resource.Storage != nil {
-		storageSize = &mergedCfg.Config.Resources.Storage.Capacity
+		storageSize = &roleGroupConfig.Resources.Storage.Capacity
 	}
-	return NewStatefulSetReconciler(ctx, mergedCfg, client, stopped, image, options, roleGroupInfo, []corev1.Container{*container}, pvcName, storageSize)
+	return NewStatefulSetReconciler(
+		ctx,
+		client,
+		stopped,
+		image,
+		replicas,
+		roleGroupInfo,
+		overrides,
+		roleGroupConfig,
+		[]corev1.Container{*container},
+		pvcName,
+		storageSize)
 }

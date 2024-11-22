@@ -1,4 +1,4 @@
-apiVersion: zookeeper.zncdata.dev/v1alpha1
+apiVersion: zookeeper.kubedoop.dev/v1alpha1
 kind: ZookeeperCluster
 metadata:
   name: test-zk
@@ -9,13 +9,3 @@ spec:
     roleGroups:
       default:
         replicas: 1
-        config:
-          logging:
-            zookeeperCluster:
-              loggers:
-                test:
-                  level: DEBUG
-              console:
-                level: WARN
-              file:
-                level: INFO

@@ -18,7 +18,8 @@ func NewWorkerRole(
 	clusterConfigSpec *dolphinv1alpha1.ClusterConfigSpec,
 	clusterOperation *commonsv1alpha1.ClusterOperationSpec,
 	apiRoleSpec *dolphinv1alpha1.RoleSpec,
-	roleInfo reconciler.RoleInfo) *common.RoleReconciler {
+	roleInfo reconciler.RoleInfo,
+) *common.RoleReconciler {
 
 	apiRoleResourcesReconcilersBuilder := &WorkerRoleResourceReconcilerBuilder{
 		client:           client,
@@ -26,8 +27,15 @@ func NewWorkerRole(
 		image:            image,
 		zkConfigMapName:  clusterConfigSpec.ZookeeperConfigMapName,
 	}
-	return common.NewRoleReconciler(client, roleInfo, clusterOperation, clusterConfigSpec, image,
-		*apiRoleSpec, apiRoleResourcesReconcilersBuilder)
+	return common.NewRoleReconciler(
+		client,
+		roleInfo,
+		clusterOperation,
+		clusterConfigSpec,
+		image,
+		*apiRoleSpec,
+		apiRoleResourcesReconcilersBuilder,
+	)
 }
 
 var _ common.RoleResourceReconcilersBuilder = &WorkerRoleResourceReconcilerBuilder{}
@@ -43,16 +51,35 @@ type WorkerRoleResourceReconcilerBuilder struct {
 // api server role has resources below:
 // - deployment
 // - service
-func (a *WorkerRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Context, roleGroupInfo *reconciler.RoleGroupInfo,
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec) []reconciler.Reconciler {
+func (a *WorkerRoleResourceReconcilerBuilder) ResourceReconcilers(
+	ctx context.Context,
+	replicas *int32,
+	roleGroupInfo *reconciler.RoleGroupInfo,
+	overrides *commonsv1alpha1.OverridesSpec,
+	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
+) []reconciler.Reconciler {
 	var reconcilers []reconciler.Reconciler
 
 	// common.properties, logback.xml Configmap
-	workerConfigMap := common.NewConfigMapReconciler(ctx, a.client, roleGroupInfo, MainContainerName, mergedCfg)
+	workerConfigMap := common.NewConfigMapReconciler(
+		ctx,
+		a.client,
+		roleGroupInfo,
+		MainContainerName,
+		overrides,
+		roleGroupConfig,
+	)
 	reconcilers = append(reconcilers, workerConfigMap)
 
 	// statefulset
-	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo, mergedCfg).CommonCommandArgs().
+	containerBuilder := common.NewContainerBuilder(
+		MainContainerName,
+		a.image,
+		a.zkConfigMapName,
+		roleGroupInfo,
+		roleGroupConfig,
+	).
+		CommonCommandArgs().
 		WithPorts(util.SortedMap{
 			dolphinv1alpha1.WorkerPortName:       dolphinv1alpha1.WorkerPort,
 			dolphinv1alpha1.WorkerActualPortName: dolphinv1alpha1.WorkerActualPort,
@@ -73,15 +100,34 @@ func (a *WorkerRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Co
 		WithReadinessAndLivenessProbe(dolphinv1alpha1.WorkerActualPort).
 		CommonCommandArgs().
 		WithVolumeMounts(nil)
-	dep := common.CreateStatefulSetReconciler(containerBuilder, ctx, a.client, a.image, a.clusterOperation, roleGroupInfo, mergedCfg,
-		a.zkConfigMapName, dolphinv1alpha1.WorkerDataVolumeName)
+	dep := common.CreateStatefulSetReconciler(
+		containerBuilder,
+		ctx,
+		a.client,
+		a.image,
+		replicas,
+		a.clusterOperation,
+		roleGroupInfo,
+		overrides,
+		roleGroupConfig,
+		a.zkConfigMapName,
+		dolphinv1alpha1.WorkerDataVolumeName,
+	)
 	reconcilers = append(reconcilers, dep)
 
 	// svc
-	svc := common.NewServiceReconciler(a.client, common.RoleGroupServiceName(roleGroupInfo), true, nil, map[string]int32{
-		dolphinv1alpha1.WorkerPortName:       dolphinv1alpha1.WorkerPort,
-		dolphinv1alpha1.WorkerActualPortName: dolphinv1alpha1.WorkerActualPort,
-	}, roleGroupInfo.GetLabels(), roleGroupInfo.GetAnnotations())
+	svc := common.NewServiceReconciler(
+		a.client,
+		common.RoleGroupServiceName(roleGroupInfo),
+		true,
+		nil,
+		map[string]int32{
+			dolphinv1alpha1.WorkerPortName:       dolphinv1alpha1.WorkerPort,
+			dolphinv1alpha1.WorkerActualPortName: dolphinv1alpha1.WorkerActualPort,
+		},
+		roleGroupInfo.GetLabels(),
+		roleGroupInfo.GetAnnotations(),
+	)
 	reconcilers = append(reconcilers, svc)
 
 	return reconcilers
