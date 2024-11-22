@@ -5,6 +5,7 @@ import (
 
 	"emperror.dev/errors"
 	v1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
+	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/productlogging"
 	"github.com/zncdatadev/operator-go/pkg/util"
@@ -16,9 +17,9 @@ var vectorLogger = ctrl.Log.WithName("vector")
 
 const ContainerVector = "vector"
 
-func IsVectorEnable(roleLoggingConfig *v1alpha1.ContainerLoggingSpec) bool {
-	if roleLoggingConfig != nil {
-		return roleLoggingConfig.EnableVectorAgent
+func IsVectorEnable(loggingConfig *commonsv1alpha1.LoggingSpec) bool {
+	if loggingConfig != nil {
+		return *loggingConfig.EnableVectorAgent
 	}
 	return false
 
@@ -47,7 +48,7 @@ func ExtendConfigMapDataByVector(ctx context.Context, params VectorConfigParams,
 	if err != nil {
 		vectorLogger.Error(errors.Wrap(err, "error creating vector YAML"), "failed to create vector YAML")
 	} else {
-		data[builder.VectorConfigFile] = vectorYaml
+		data[builder.VectorConfigFileName] = vectorYaml
 	}
 }
 

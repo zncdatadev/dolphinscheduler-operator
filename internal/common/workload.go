@@ -2,8 +2,10 @@ package common
 
 import (
 	"context"
+	"encoding/json"
 
 	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
+	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/client"
 	"github.com/zncdatadev/operator-go/pkg/productlogging"
@@ -12,56 +14,89 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func NewDeploymentReconciler(
 	ctx context.Context,
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
 	client *client.Client,
 	stopped bool,
 	image *util.Image,
-	options builder.WorkloadOptions,
+	replicas *int32,
 	roleGroupInfo *reconciler.RoleGroupInfo,
+	overrides *commonsv1alpha1.OverridesSpec,
+	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
 	containers []corev1.Container,
 	volumes []corev1.Volume) reconciler.ResourceReconciler[builder.DeploymentBuilder] {
 	deploymentBuilder := &DeploymentBuilder{
-		Deployment:      builder.NewDeployment(client, DeploymentName(roleGroupInfo), &mergedCfg.Replicas, image, options),
-		WorkloadBuilder: NewWorkloadBuilder(mergedCfg, roleGroupInfo, containers),
+		Deployment: builder.NewDeployment(
+			client,
+			DeploymentName(roleGroupInfo),
+			replicas,
+			image,
+			overrides,
+			roleGroupConfig,
+			func(o *builder.Options) {
+				o.ClusterName = roleGroupInfo.GetClusterName()
+				o.RoleGroupName = roleGroupInfo.GetGroupName()
+				o.RoleName = roleGroupInfo.GetRoleName()
+				o.Annotations = roleGroupInfo.GetAnnotations()
+				o.Labels = roleGroupInfo.GetLabels()
+			},
+		),
+		WorkloadBuilder: NewWorkloadBuilder(roleGroupConfig, roleGroupInfo, containers),
 	}
 	if len(volumes) > 0 {
 		deploymentBuilder.WithVolumes(volumes)
 	}
-	return reconciler.NewDeployment(client, DeploymentName(roleGroupInfo), deploymentBuilder, stopped)
+	return reconciler.NewDeployment(client, deploymentBuilder, stopped)
 }
 func NewStatefulSetReconciler(
 	ctx context.Context,
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
 	client *client.Client,
 	stopped bool,
 	image *util.Image,
-	options builder.WorkloadOptions,
+	replicas *int32,
 	roleGroupInfo *reconciler.RoleGroupInfo,
-	containers []corev1.Container, pvcName string, storageSize *resource.Quantity) reconciler.ResourceReconciler[builder.StatefulSetBuilder] {
-	b := NewWorkloadBuilder(mergedCfg, roleGroupInfo, containers)
+	overrides *commonsv1alpha1.OverridesSpec,
+	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
+	containers []corev1.Container,
+	pvcName string,
+	storageSize *resource.Quantity) reconciler.ResourceReconciler[builder.StatefulSetBuilder] {
+	b := NewWorkloadBuilder(roleGroupConfig, roleGroupInfo, containers)
 	if pvcName != "" {
 		b.WithPvcTemplates(pvcName, *storageSize)
 	}
 	stsBuilder := &StatefulSetBuilder{
-		StatefulSet:     builder.NewStatefulSetBuilder(client, StatefulsetName(roleGroupInfo), &mergedCfg.Replicas, image, options),
+		StatefulSet: builder.NewStatefulSetBuilder(
+			client,
+			StatefulsetName(roleGroupInfo),
+			replicas,
+			image,
+			overrides,
+			roleGroupConfig,
+			func(o *builder.Options) {
+				o.ClusterName = roleGroupInfo.GetClusterName()
+				o.RoleGroupName = roleGroupInfo.GetGroupName()
+				o.RoleName = roleGroupInfo.GetRoleName()
+				o.Annotations = roleGroupInfo.GetAnnotations()
+				o.Labels = roleGroupInfo.GetLabels()
+			},
+		),
 		WorkloadBuilder: b,
 	}
-	return reconciler.NewStatefulSet(client, StatefulsetName(roleGroupInfo), stsBuilder, stopped)
+	return reconciler.NewStatefulSet(client, stsBuilder, stopped)
 }
 
 func NewWorkloadBuilder(
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec,
+	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
 	rolegroupInfo *reconciler.RoleGroupInfo,
 	containers []corev1.Container) *WorkloadBuilder {
 	builder := &WorkloadBuilder{
-		RoleGroupInf: rolegroupInfo,
-		Containers:   containers,
-		MergedCfg:    mergedCfg,
+		RoleGroupInf:    rolegroupInfo,
+		Containers:      containers,
+		RoleGroupConfig: roleGroupConfig,
 	}
 	builder.volumes = builder.commonVolumes()
 	return builder
@@ -76,7 +111,11 @@ type DeploymentBuilder struct {
 }
 
 func (b *DeploymentBuilder) Build(ctx context.Context) (ctrlclient.Object, error) {
-	b.SetAffinity(b.MergedCfg.Config.Affinity)
+	if affinity, err := b.ExtractAffinity(); err != nil {
+		return nil, err
+	} else if affinity != nil {
+		b.SetAffinity(affinity)
+	}
 	b.AddContainers(b.Containers)
 	b.AddVolumes(b.volumes)
 	// b.SetSecurityContext(1001, 1001, false)
@@ -98,7 +137,11 @@ type StatefulSetBuilder struct {
 }
 
 func (b *StatefulSetBuilder) Build(ctx context.Context) (ctrlclient.Object, error) {
-	b.SetAffinity(b.MergedCfg.Config.Affinity)
+	if affinity, err := b.ExtractAffinity(); err != nil {
+		return nil, err
+	} else if affinity != nil {
+		b.SetAffinity(affinity)
+	}
 	b.AddContainers(b.Containers)
 	b.AddVolumes(b.volumes)
 	// b.SetSecurityContext(1001, 1001, false)
@@ -118,9 +161,9 @@ func (b *StatefulSetBuilder) Build(ctx context.Context) (ctrlclient.Object, erro
 
 // workload builder
 type WorkloadBuilder struct {
-	RoleGroupInf *reconciler.RoleGroupInfo
-	Containers   []corev1.Container
-	MergedCfg    *dolphinv1alpha1.RoleGroupSpec
+	RoleGroupInf    *reconciler.RoleGroupInfo
+	Containers      []corev1.Container
+	RoleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec
 
 	pvcs    []corev1.PersistentVolumeClaim
 	volumes []corev1.Volume
@@ -128,9 +171,21 @@ type WorkloadBuilder struct {
 
 // decoraate vector
 func (w *WorkloadBuilder) VectorDecorator(workloadObject ctrlclient.Object, image *util.Image) {
-	if IsVectorEnable(w.MergedCfg.Config.Logging) {
+	if IsVectorEnable(w.RoleGroupConfig.Logging) {
 		ExtendWorkloadByVector(image, workloadObject, RoleGroupConfigMapName(w.RoleGroupInf))
 	}
+}
+
+// set Affinity
+func (w *WorkloadBuilder) ExtractAffinity() (*corev1.Affinity, error) {
+	if w.RoleGroupConfig != nil && w.RoleGroupConfig.Affinity != nil {
+		affinity, err := convertRawExtension[corev1.Affinity](w.RoleGroupConfig.Affinity)
+		if err != nil {
+			return nil, err
+		}
+		return affinity, nil
+	}
+	return nil, nil
 }
 
 // with volumes
@@ -212,4 +267,16 @@ func (w *WorkloadBuilder) WithPvcTemplates(pvcName string, storageSize resource.
 // get pvc templates
 func (w *WorkloadBuilder) GetPvcTemplates() []corev1.PersistentVolumeClaim {
 	return w.pvcs
+}
+
+func convertRawExtension[T any](raw *runtime.RawExtension) (*T, error) {
+	var obj T
+	if raw == nil || raw.Raw == nil {
+		return &obj, nil
+	}
+
+	if err := json.Unmarshal(raw.Raw, &obj); err != nil {
+		return &obj, err
+	}
+	return &obj, nil
 }

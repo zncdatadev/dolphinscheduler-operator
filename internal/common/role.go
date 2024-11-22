@@ -54,22 +54,49 @@ type RoleReconciler struct {
 }
 
 type RoleResourceReconcilersBuilder interface {
-	ResourceReconcilers(ctx context.Context, info *reconciler.RoleGroupInfo, roleGroupSpec *dolphinv1alpha1.RoleGroupSpec) []reconciler.Reconciler
+	ResourceReconcilers(
+		ctx context.Context,
+		replicas *int32,
+		info *reconciler.RoleGroupInfo,
+		overrides *commonsv1alpha1.OverridesSpec,
+		roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
+	) []reconciler.Reconciler
 }
 
 func (r *RoleReconciler) RegisterResources(ctx context.Context) error {
 	for name, roleGroup := range r.Spec.RoleGroups {
-		mergedRoleGroup := r.MergeRoleGroupSpec(&roleGroup)
-		defaultConfig := DefaultConfig(util.Role(r.RoleInfo.RoleName), r.Client.GetOwnerName())
-		mergedCfg := mergedRoleGroup.(*dolphinv1alpha1.RoleGroupSpec)
+		mergedConfig, err := opgoutil.MergeObject(r.Spec.Config, roleGroup.Config)
+		if err != nil {
+			return err
+		}
+		overrides, err := opgoutil.MergeObject(r.Spec.OverridesSpec, roleGroup.OverridesSpec)
+		if err != nil {
+			return err
+		}
 		// merge default config to the provided config
-		defaultConfig.Merge(mergedCfg)
+		defaultConfig := DefaultConfig(util.Role(r.RoleInfo.RoleName), r.Client.GetOwnerName())
+		if mergedConfig == nil {
+			mergedConfig = &dolphinv1alpha1.ConfigSpec{}
+		}
+		if overrides == nil {
+			overrides = &commonsv1alpha1.OverridesSpec{}
+		}
+		err = defaultConfig.MergeDefaultConfig(overrides, mergedConfig)
+		if err != nil {
+			return err
+		}
 
 		info := &reconciler.RoleGroupInfo{
 			RoleInfo:      r.RoleInfo,
 			RoleGroupName: name,
 		}
-		reconcilers, err := r.RegisterResourceWithRoleGroup(ctx, info, mergedRoleGroup)
+		reconcilers, err := r.RegisterResourceWithRoleGroup(
+			ctx,
+			roleGroup.Replicas,
+			info,
+			overrides,
+			mergedConfig.RoleGroupConfigSpec,
+		)
 		if err != nil {
 			return err
 		}
@@ -82,8 +109,12 @@ func (r *RoleReconciler) RegisterResources(ctx context.Context) error {
 	return nil
 }
 
-func (r *RoleReconciler) RegisterResourceWithRoleGroup(ctx context.Context, info *reconciler.RoleGroupInfo,
-	roleGroupSpec any) ([]reconciler.Reconciler, error) {
-	mergedCfg := roleGroupSpec.(*dolphinv1alpha1.RoleGroupSpec)
-	return r.roleResourceReconcilersBuilder.ResourceReconcilers(ctx, info, mergedCfg), nil
+func (r *RoleReconciler) RegisterResourceWithRoleGroup(
+	ctx context.Context,
+	replicas *int32,
+	info *reconciler.RoleGroupInfo,
+	overrides *commonsv1alpha1.OverridesSpec,
+	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
+) ([]reconciler.Reconciler, error) {
+	return r.roleResourceReconcilersBuilder.ResourceReconcilers(ctx, replicas, info, overrides, roleGroupConfig), nil
 }

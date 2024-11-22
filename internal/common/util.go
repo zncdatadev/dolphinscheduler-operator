@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/zncdatadev/dolphinscheduler-operator/pkg/util"
-	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/constants"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 )
@@ -42,15 +41,15 @@ func RoleGroupServiceName(roleGroupInfo *reconciler.RoleGroupInfo) string {
 }
 
 func ServiceAccountName(instanceName string) string {
-	return builder.ServiceAccountName(instanceName)
+	return instanceName
 }
 
 func RoleName(instanceName string) string {
-	return builder.RoleName(instanceName)
+	return instanceName
 }
 
 func RoleBindName(instanceName string) string {
-	return builder.RoleBindingName(instanceName)
+	return instanceName
 }
 
 func PodFQDN(podName, svcName, namespace string) string {

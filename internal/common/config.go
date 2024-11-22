@@ -1,6 +1,7 @@
 package common
 
 import (
+	"encoding/json"
 	"maps"
 	"reflect"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -192,67 +194,80 @@ func (c *DolphinSchedulerConfig) ComputeFile() (map[string]interface{}, error) {
 }
 
 // merge defaultConfig
-func (c *DolphinSchedulerConfig) Merge(mergedCfg *dolphinv1alpha1.RoleGroupSpec) {
-
-	if mergedCfg.Config == nil {
-		mergedCfg.Config = &dolphinv1alpha1.ConfigSpec{}
+func (c *DolphinSchedulerConfig) MergeDefaultConfig(
+	overrides *commonsv1alpha1.OverridesSpec,
+	mergedCfg *dolphinv1alpha1.ConfigSpec,
+) error {
+	mergedRoleGroupSpec := mergedCfg.RoleGroupConfigSpec
+	if mergedRoleGroupSpec == nil {
+		mergedRoleGroupSpec = &commonsv1alpha1.RoleGroupConfigSpec{}
 	}
 
-	// mergedresources
-	if mergedresources := mergedCfg.Config.Resources; mergedresources == nil {
-		mergedCfg.Config.Resources = c.resources
+	// resources
+	if mergedresources := mergedRoleGroupSpec.Resources; mergedresources == nil {
+		mergedRoleGroupSpec.Resources = c.resources
 	} else {
 		if mergedCpu := mergedresources.CPU; mergedCpu == nil {
-			mergedCfg.Config.Resources.CPU = c.resources.CPU
+			mergedRoleGroupSpec.Resources.CPU = c.resources.CPU
 		}
 		if mergedMemory := mergedresources.Memory; mergedMemory == nil {
-			mergedCfg.Config.Resources.Memory = c.resources.Memory
+			mergedRoleGroupSpec.Resources.Memory = c.resources.Memory
 		}
 		if mergedStorage := mergedresources.Storage; mergedStorage == nil {
-			mergedCfg.Config.Resources.Storage = c.resources.Storage
+			mergedRoleGroupSpec.Resources.Storage = c.resources.Storage
 		}
 	}
 
 	// affinity
-	if mergedCfg.Config.Affinity == nil {
-		mergedCfg.Config.Affinity = c.common.Affinity
+	if mergedRoleGroupSpec.Affinity == nil {
+		defaultAffinityJsonRaw, err := json.Marshal(c.common.Affinity)
+		if err != nil {
+			return err
+		}
+		mergedRoleGroupSpec.Affinity = &runtime.RawExtension{Raw: defaultAffinityJsonRaw}
 	}
 
 	// gracefulShutdownTimeoutSeconds
-	if mergedCfg.Config.GracefulShutdownTimeout == nil {
-		mergedCfg.Config.GracefulShutdownTimeout = c.common.GetgracefulShutdownTimeoutSeconds()
+	if mergedRoleGroupSpec.GracefulShutdownTimeout == "" {
+		mergedRoleGroupSpec.GracefulShutdownTimeout = *c.common.GetgracefulShutdownTimeoutSeconds()
 	}
+	mergedCfg.RoleGroupConfigSpec = mergedRoleGroupSpec
 
+	// configOverride
+	if overrides == nil {
+		overrides = &commonsv1alpha1.OverridesSpec{}
+	}
+	configOverrides := overrides.ConfigOverrides
+	if configOverrides == nil {
+		configOverrides = map[string]map[string]string{}
+	}
 	// common properties
 	fileConfig, _ := c.ComputeFile()
-	if mergedCfg.ConfigOverrides == nil {
-		mergedCfg.ConfigOverrides = &dolphinv1alpha1.ConfigOverridesSpec{}
-	}
-	if mergedCfg.ConfigOverrides.CommonProperties == nil {
-		if commonArgs, ok := fileConfig[dolphinv1alpha1.DolphinCommonPropertiesName]; ok {
-			mergedCfg.ConfigOverrides.CommonProperties = toMap(commonArgs)
-		}
+	if commonPropertiesExists, ok := configOverrides[dolphinv1alpha1.DolphinCommonPropertiesName]; !ok {
+		dist := toMap(fileConfig[dolphinv1alpha1.DolphinCommonPropertiesName])
+		src := commonPropertiesExists
+		maps.Copy(dist, src) // cr define overrdie default
+		configOverrides[dolphinv1alpha1.DolphinCommonPropertiesName] = dist
 	} else {
-		src := mergedCfg.ConfigOverrides.CommonProperties
-		if commonArgs, ok := fileConfig[dolphinv1alpha1.DolphinCommonPropertiesName]; ok {
-			dist := toMap(commonArgs)
-			maps.Copy(dist, src) // cr define overrdie default
-			mergedCfg.ConfigOverrides.CommonProperties = dist
-		}
+		configOverrides[dolphinv1alpha1.DolphinCommonPropertiesName] = toMap(fileConfig[dolphinv1alpha1.DolphinCommonPropertiesName])
 	}
+	overrides.ConfigOverrides = configOverrides
 
 	// envOverride
+	envOverrides := overrides.EnvOverrides
 	envConfig, _ := c.ComputeEnv()
-	if mergedCfg.ConfigOverrides == nil {
-		mergedCfg.EnvOverrides = envConfig
+	if envOverrides == nil {
+		envOverrides = envConfig
 	} else {
-		src := mergedCfg.EnvOverrides
-		dist := envConfig
+		src := envConfig
+		dist := envOverrides
 		maps.Copy(dist, src) // cr define overrdie default
-		mergedCfg.EnvOverrides = dist
+		envOverrides = dist
 	}
+	overrides.EnvOverrides = envOverrides
 
 	// do other merge ...
+	return nil
 
 }
 

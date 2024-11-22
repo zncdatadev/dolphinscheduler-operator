@@ -17,6 +17,8 @@ import (
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 )
 
 var configmapLogger = ctrl.Log.WithName("configmap")
@@ -26,17 +28,17 @@ func NewConfigMapReconciler(
 	client *client.Client,
 	roleGroupInf *reconciler.RoleGroupInfo,
 	contaienr util.ContainerComponent,
-	mergedConfig *dolphinv1alpha1.RoleGroupSpec,
+	overrides *commonsv1alpha1.OverridesSpec,
+	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
 ) reconciler.ResourceReconciler[*builder.ConfigMapBuilder] {
-	builder := builder.NewConfigMapBuilder(client, RoleGroupConfigMapName(roleGroupInf), roleGroupInf.GetLabels(), roleGroupInf.GetAnnotations())
-	var loggingSpec *loggingv1alpha1.LoggingConfigSpec
-	var containerLoggingSpec *dolphinv1alpha1.ContainerLoggingSpec
-	if mergedConfig.Config != nil && mergedConfig.Config.Logging != nil {
-		containerLoggingSpec = mergedConfig.Config.Logging
-		if mergedConfig.Config.Logging.Logging != nil {
-			loggingSpec = mergedConfig.Config.Logging.Logging
-		}
-	}
+	builder := builder.NewConfigMapBuilder(
+		client,
+		RoleGroupConfigMapName(roleGroupInf),
+		func(o *builder.Options) {
+			o.Annotations = roleGroupInf.GetAnnotations()
+			o.Labels = roleGroupInf.GetLabels()
+		})
+
 	var s3Spec *s3v1alpha1.S3BucketSpec
 	owner := client.GetOwnerReference()
 	cr := owner.(*dolphinv1alpha1.DolphinschedulerCluster)
@@ -46,18 +48,18 @@ func NewConfigMapReconciler(
 
 	data := config.GenerateAllFile(ctx, []config.FileContentGenerator{
 		&CommonPropertiesGenerator{
-			client:       client,
-			namespace:    client.GetOwnerNamespace(),
-			mergedConfig: mergedConfig,
-			s3:           s3Spec,
+			client:    client,
+			namespace: client.GetOwnerNamespace(),
+			overrides: overrides,
+			s3:        s3Spec,
 		},
 		&LogbackXmlGenerator{
-			loggingSpec: loggingSpec,
+			loggingSpec: roleGroupConfig.Logging,
 			container:   contaienr,
 		},
 	})
 
-	if IsVectorEnable(containerLoggingSpec) {
+	if IsVectorEnable(roleGroupConfig.Logging) {
 		ExtendConfigMapDataByVector(ctx, VectorConfigParams{
 			Client:        client.GetCtrlClient(),
 			ClusterConfig: cr.Spec.ClusterConfig,
@@ -68,16 +70,23 @@ func NewConfigMapReconciler(
 		}, data)
 	}
 	builder.AddData(data)
-	return reconciler.NewGenericResourceReconciler(client, RoleGroupConfigMapName(roleGroupInf), builder)
+	return reconciler.NewGenericResourceReconciler(client, builder)
 }
 
 func NewEnvConfigMapReconciler(
 	ctx context.Context,
 	client *client.Client,
-	mergedConfig *dolphinv1alpha1.RoleGroupSpec,
+	overrides *commonsv1alpha1.OverridesSpec,
 	roleGroupInfo *reconciler.RoleGroupInfo,
 ) reconciler.ResourceReconciler[*builder.ConfigMapBuilder] {
-	builder := builder.NewConfigMapBuilder(client, RoleGroupEnvsConfigMapName(client.GetOwnerName()), roleGroupInfo.GetLabels(), roleGroupInfo.GetAnnotations())
+	builder := builder.NewConfigMapBuilder(
+		client,
+		RoleGroupEnvsConfigMapName(client.GetOwnerName()),
+		func(o *builder.Options) {
+			o.Annotations = roleGroupInfo.GetAnnotations()
+			o.Labels = roleGroupInfo.GetLabels()
+		},
+	)
 
 	owner := client.GetOwnerReference()
 	cr := owner.(*dolphinv1alpha1.DolphinschedulerCluster)
@@ -91,11 +100,11 @@ func NewEnvConfigMapReconciler(
 			client:       client,
 			namespace:    client.GetOwnerNamespace(),
 			databaseSpec: dbSpec,
-			mergedConfig: mergedConfig,
+			overrides:    overrides,
 		},
 	})
 	builder.AddData(data)
-	return reconciler.NewGenericResourceReconciler(client, RoleGroupEnvsConfigMapName(client.GetOwnerName()), builder)
+	return reconciler.NewGenericResourceReconciler(client, builder)
 }
 
 // ----------- common.properties generator -----------
@@ -105,8 +114,8 @@ type CommonPropertiesGenerator struct {
 	s3     *s3v1alpha1.S3BucketSpec
 	client *client.Client
 
-	namespace    string
-	mergedConfig *dolphinv1alpha1.RoleGroupSpec
+	namespace string
+	overrides *commonsv1alpha1.OverridesSpec
 }
 
 // FileName implements config.FileContentGenerator.
@@ -117,7 +126,13 @@ func (c *CommonPropertiesGenerator) FileName() string {
 // Generate implements config.FileContentGenerator.
 func (c *CommonPropertiesGenerator) Generate(ctx context.Context) (string, error) {
 	var commonProperties = make(map[string]string)
-	maps.Copy(commonProperties, c.mergedConfig.ConfigOverrides.CommonProperties)
+
+	if c.overrides != nil && c.overrides.ConfigOverrides != nil {
+		if commonPropertiesOverride, ok := c.overrides.ConfigOverrides[c.FileName()]; ok {
+			maps.Copy(commonProperties, commonPropertiesOverride)
+		}
+	}
+
 	if c.s3 != nil {
 		extractor := util.NewS3ConfigExtractor(c.client, c.s3, c.namespace)
 		s3Config, err := extractor.GetS3Config(ctx)
@@ -141,7 +156,7 @@ func (c *CommonPropertiesGenerator) Generate(ctx context.Context) (string, error
 var _ config.FileContentGenerator = &LogbackXmlGenerator{}
 
 type LogbackXmlGenerator struct {
-	loggingSpec *loggingv1alpha1.LoggingConfigSpec
+	loggingSpec *loggingv1alpha1.LoggingSpec
 	container   util.ContainerComponent
 }
 
@@ -152,8 +167,14 @@ func (l *LogbackXmlGenerator) FileName() string {
 
 // Generate implements config.FileContentGenerator.
 func (l *LogbackXmlGenerator) Generate(ctx context.Context) (string, error) {
+	var roleLoggingConfig *loggingv1alpha1.LoggingConfigSpec
+	if l.loggingSpec != nil && l.loggingSpec.Containers != nil {
+		if containerLoggingSpec, ok := l.loggingSpec.Containers[string(l.container)]; ok {
+			roleLoggingConfig = &containerLoggingSpec
+		}
+	}
 	logGenerator, err := NewConfigGenerator(
-		l.loggingSpec,
+		roleLoggingConfig,
 		string(l.container),
 		fmt.Sprintf("%s.log4j.xml", l.container),
 		productlogging.LogTypeLogback,
@@ -161,12 +182,10 @@ func (l *LogbackXmlGenerator) Generate(ctx context.Context) (string, error) {
 			cgo.ConsoleHandlerFormatter = ptr.To(dolphinv1alpha1.ConsoleConversionPattern)
 		},
 	)
-
 	if err != nil {
 		return "", err
 	}
 	return logGenerator.Content()
-
 }
 
 // ----------- env configmap data generator -----------
@@ -176,13 +195,13 @@ type EnvConfigmapDataGenerator struct {
 	client       *client.Client
 	namespace    string
 	databaseSpec *dolphinv1alpha1.DatabaseSpec
-	mergedConfig *dolphinv1alpha1.RoleGroupSpec
+	overrides    *commonsv1alpha1.OverridesSpec
 }
 
 // Generate implements config.EnvGenerator.
 func (e *EnvConfigmapDataGenerator) Generate(ctx context.Context) (envs map[string]string, err error) {
 	envs = make(map[string]string)
-	maps.Copy(envs, e.mergedConfig.EnvOverrides)
+	maps.Copy(envs, e.overrides.EnvOverrides)
 	if e.databaseSpec == nil {
 		return envs, err
 	}

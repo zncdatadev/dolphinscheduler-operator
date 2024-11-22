@@ -48,16 +48,35 @@ type ApierRoleResourceReconcilerBuilder struct {
 // api server role has resources below:
 // - deployment
 // - service
-func (a *ApierRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Context, roleGroupInfo *reconciler.RoleGroupInfo,
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec) []reconciler.Reconciler {
+func (a *ApierRoleResourceReconcilerBuilder) ResourceReconcilers(
+	ctx context.Context,
+	replicas *int32,
+	roleGroupInfo *reconciler.RoleGroupInfo,
+	overrides *commonsv1alpha1.OverridesSpec,
+	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
+) []reconciler.Reconciler {
 	var reconcilers []reconciler.Reconciler
 
 	// Configmap
-	apiServerConfigMap := common.NewConfigMapReconciler(ctx, a.client, roleGroupInfo, MainContainerName, mergedCfg)
+	apiServerConfigMap := common.NewConfigMapReconciler(
+		ctx,
+		a.client,
+		roleGroupInfo,
+		MainContainerName,
+		overrides,
+		roleGroupConfig,
+	)
 	reconcilers = append(reconcilers, apiServerConfigMap)
 
 	// deployment
-	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo, mergedCfg).CommonCommandArgs().
+	containerBuilder := common.NewContainerBuilder(
+		MainContainerName,
+		a.image,
+		a.zkConfigMapName,
+		roleGroupInfo,
+		roleGroupConfig,
+	).
+		CommonCommandArgs().
 		WithPorts(util.SortedMap{
 			dolphinv1alpha1.ApiPortName:       dolphinv1alpha1.ApiPort,
 			dolphinv1alpha1.ApiPythonPortName: dolphinv1alpha1.ApiPythonPort,
@@ -71,14 +90,34 @@ func (a *ApierRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Con
 	if err != nil {
 		return nil
 	}
-	dep := common.CreateDeploymentReconciler(containerBuilder, ctx, a.client, a.image, a.clusterOperation, roleGroupInfo, mergedCfg, a.zkConfigMapName, volumes)
+	dep := common.CreateDeploymentReconciler(
+		containerBuilder,
+		ctx,
+		a.client,
+		a.image,
+		replicas,
+		a.clusterOperation,
+		roleGroupInfo,
+		overrides,
+		roleGroupConfig,
+		a.zkConfigMapName,
+		volumes,
+	)
 	reconcilers = append(reconcilers, dep)
 
 	// svc
-	svc := common.NewServiceReconciler(a.client, common.RoleGroupServiceName(roleGroupInfo), false, nil, map[string]int32{
-		dolphinv1alpha1.ApiPortName:       dolphinv1alpha1.ApiPort,
-		dolphinv1alpha1.ApiPythonPortName: dolphinv1alpha1.ApiPythonPort,
-	}, roleGroupInfo.GetLabels(), roleGroupInfo.GetAnnotations())
+	svc := common.NewServiceReconciler(
+		a.client,
+		common.RoleGroupServiceName(roleGroupInfo),
+		false,
+		nil,
+		map[string]int32{
+			dolphinv1alpha1.ApiPortName:       dolphinv1alpha1.ApiPort,
+			dolphinv1alpha1.ApiPythonPortName: dolphinv1alpha1.ApiPythonPort,
+		},
+		roleGroupInfo.GetLabels(),
+		roleGroupInfo.GetAnnotations(),
+	)
 	reconcilers = append(reconcilers, svc)
 
 	return reconcilers

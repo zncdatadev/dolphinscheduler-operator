@@ -41,16 +41,35 @@ type AlerterRoleResourceReconcilerBuilder struct {
 // alerter role has resources below:
 // - deployment
 // - service
-func (a *AlerterRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.Context, roleGroupInfo *reconciler.RoleGroupInfo,
-	mergedCfg *dolphinv1alpha1.RoleGroupSpec) []reconciler.Reconciler {
+func (a *AlerterRoleResourceReconcilerBuilder) ResourceReconcilers(
+	ctx context.Context,
+	replicas *int32,
+	roleGroupInfo *reconciler.RoleGroupInfo,
+	overrides *commonsv1alpha1.OverridesSpec,
+	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
+) []reconciler.Reconciler {
 	var reconcilers []reconciler.Reconciler
 
 	// Configmap
-	workerConfigMap := common.NewConfigMapReconciler(ctx, a.client, roleGroupInfo, MainContainerName, mergedCfg)
+	workerConfigMap := common.NewConfigMapReconciler(
+		ctx,
+		a.client,
+		roleGroupInfo,
+		MainContainerName,
+		overrides,
+		roleGroupConfig,
+	)
 	reconcilers = append(reconcilers, workerConfigMap)
 
 	// deployment
-	containerBuilder := common.NewContainerBuilder(MainContainerName, a.image, a.zkConfigMapName, roleGroupInfo, mergedCfg).CommonCommandArgs().
+	containerBuilder := common.NewContainerBuilder(
+		MainContainerName,
+		a.image,
+		a.zkConfigMapName,
+		roleGroupInfo,
+		roleGroupConfig,
+	).
+		CommonCommandArgs().
 		WithPorts(util.SortedMap{
 			dolphinv1alpha1.AlerterPortName:       dolphinv1alpha1.AlerterPort,
 			dolphinv1alpha1.AlerterActualPortName: dolphinv1alpha1.AlerterActualPort,
@@ -59,14 +78,34 @@ func (a *AlerterRoleResourceReconcilerBuilder) ResourceReconcilers(ctx context.C
 		WithReadinessAndLivenessProbe(dolphinv1alpha1.AlerterActualPort).
 		CommonCommandArgs().
 		WithVolumeMounts(nil)
-	dep := common.CreateDeploymentReconciler(containerBuilder, ctx, a.client, a.image, a.clusterOperation, roleGroupInfo, mergedCfg, a.zkConfigMapName, nil)
+	dep := common.CreateDeploymentReconciler(
+		containerBuilder,
+		ctx,
+		a.client,
+		a.image,
+		replicas,
+		a.clusterOperation,
+		roleGroupInfo,
+		overrides,
+		roleGroupConfig,
+		a.zkConfigMapName,
+		nil,
+	)
 	reconcilers = append(reconcilers, dep)
 
 	// svc
-	svc := common.NewServiceReconciler(a.client, common.RoleGroupServiceName(roleGroupInfo), false, nil, map[string]int32{
-		dolphinv1alpha1.AlerterPortName:       dolphinv1alpha1.AlerterPort,
-		dolphinv1alpha1.AlerterActualPortName: dolphinv1alpha1.AlerterActualPort,
-	}, roleGroupInfo.GetLabels(), roleGroupInfo.GetAnnotations())
+	svc := common.NewServiceReconciler(
+		a.client,
+		common.RoleGroupServiceName(roleGroupInfo),
+		false,
+		nil,
+		map[string]int32{
+			dolphinv1alpha1.AlerterPortName:       dolphinv1alpha1.AlerterPort,
+			dolphinv1alpha1.AlerterActualPortName: dolphinv1alpha1.AlerterActualPort,
+		},
+		roleGroupInfo.GetLabels(),
+		roleGroupInfo.GetAnnotations(),
+	)
 	reconcilers = append(reconcilers, svc)
 
 	return reconcilers
