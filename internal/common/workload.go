@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"emperror.dev/errors"
 	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
 	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/builder"
@@ -11,6 +12,7 @@ import (
 	"github.com/zncdatadev/operator-go/pkg/productlogging"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	"github.com/zncdatadev/operator-go/pkg/util"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -172,7 +174,21 @@ type WorkloadBuilder struct {
 // decoraate vector
 func (w *WorkloadBuilder) VectorDecorator(workloadObject ctrlclient.Object, image *util.Image) {
 	if IsVectorEnable(w.RoleGroupConfig.Logging) {
-		ExtendWorkloadByVector(image, workloadObject, RoleGroupConfigMapName(w.RoleGroupInf))
+		// ExtendWorkloadByVector(image, workloadObject, RoleGroupConfigMapName(w.RoleGroupInf))
+		vectorFactory := GetVecctorFactory(image)
+
+		switch obj := workloadObject.(type) {
+		case *appsv1.Deployment:
+			obj.Spec.Template.Spec.Containers = append(obj.Spec.Template.Spec.Containers, *vectorFactory.GetContainer())
+			obj.Spec.Template.Spec.Volumes = append(obj.Spec.Template.Spec.Volumes, vectorFactory.GetVolumes()...)
+		case *appsv1.StatefulSet:
+			obj.Spec.Template.Spec.Containers = append(obj.Spec.Template.Spec.Containers, *vectorFactory.GetContainer())
+			obj.Spec.Template.Spec.Volumes = append(obj.Spec.Template.Spec.Volumes, vectorFactory.GetVolumes()...)
+		default:
+			// Handle other types of workload objects if needed
+			logger.Error(errors.New("unsupported workload type"), "unsupported workload type", "type", obj.GetObjectKind().GroupVersionKind())
+			return
+		}
 	}
 }
 

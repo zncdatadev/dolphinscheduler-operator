@@ -52,14 +52,10 @@ func ExtendConfigMapDataByVector(ctx context.Context, params VectorConfigParams,
 	}
 }
 
-func ExtendWorkloadByVector(
-	image *util.Image,
-	workloadObject ctrlclient.Object,
-	vectorConfigMapName string) {
-	decorator := builder.NewVectorDecorator(workloadObject, image, v1alpha1.LoggingVolumeName, v1alpha1.ConfigVolumeName, vectorConfigMapName)
-	err := decorator.Decorate()
-	if err != nil {
-		vectorLogger.Error(errors.Wrap(err, "error decorating workload"), "failed to decorate workload")
-		return
-	}
+func GetVecctorFactory(image *util.Image) *builder.Vector {
+	return builder.NewVector(
+		v1alpha1.ConfigVolumeName,
+		v1alpha1.LoggingVolumeName,
+		image,
+	)
 }
