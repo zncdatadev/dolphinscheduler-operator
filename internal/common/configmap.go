@@ -9,7 +9,7 @@ import (
 	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdatadev/dolphinscheduler-operator/pkg/config"
 	"github.com/zncdatadev/dolphinscheduler-operator/pkg/util"
-	loggingv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
+	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 	s3v1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/s3/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/client"
@@ -17,8 +17,6 @@ import (
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
-
-	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
 )
 
 var configmapLogger = ctrl.Log.WithName("configmap")
@@ -156,7 +154,7 @@ func (c *CommonPropertiesGenerator) Generate(ctx context.Context) (string, error
 var _ config.FileContentGenerator = &LogbackXmlGenerator{}
 
 type LogbackXmlGenerator struct {
-	loggingSpec *loggingv1alpha1.LoggingSpec
+	loggingSpec *commonsv1alpha1.LoggingSpec
 	container   util.ContainerComponent
 }
 
@@ -167,7 +165,7 @@ func (l *LogbackXmlGenerator) FileName() string {
 
 // Generate implements config.FileContentGenerator.
 func (l *LogbackXmlGenerator) Generate(ctx context.Context) (string, error) {
-	var roleLoggingConfig *loggingv1alpha1.LoggingConfigSpec
+	var roleLoggingConfig *commonsv1alpha1.LoggingConfigSpec
 	if l.loggingSpec != nil && l.loggingSpec.Containers != nil {
 		if containerLoggingSpec, ok := l.loggingSpec.Containers[string(l.container)]; ok {
 			roleLoggingConfig = &containerLoggingSpec

@@ -89,7 +89,7 @@ func DefaultConfig(role util.Role, crName string) *DolphinSchedulerConfig {
 					},
 				},
 			}, // TODO: refactor with affinity builder of operator-go in the future, here handled it simplely now.
-			gracefulShutdownTimeoutSeconds: DefaultServerGrace * time.Second,
+			gracefulShutdownTimeout: DefaultServerGrace * time.Second,
 		},
 	}
 }
@@ -104,11 +104,11 @@ type DolphinSchedulerConfig struct {
 type GeneralNodeConfig struct {
 	Affinity *corev1.Affinity
 
-	gracefulShutdownTimeoutSeconds time.Duration
+	gracefulShutdownTimeout time.Duration
 }
 
-func (G *GeneralNodeConfig) GetgracefulShutdownTimeoutSeconds() *string {
-	seconds := G.gracefulShutdownTimeoutSeconds.Seconds()
+func (G *GeneralNodeConfig) GetgracefulShutdownTimeout() *string {
+	seconds := G.gracefulShutdownTimeout.Seconds()
 	v := strconv.Itoa(int(seconds)) + "s"
 	return &v
 }
@@ -227,9 +227,9 @@ func (c *DolphinSchedulerConfig) MergeDefaultConfig(
 		mergedRoleGroupSpec.Affinity = &runtime.RawExtension{Raw: defaultAffinityJsonRaw}
 	}
 
-	// gracefulShutdownTimeoutSeconds
+	// gracefulShutdownTimeout
 	if mergedRoleGroupSpec.GracefulShutdownTimeout == "" {
-		mergedRoleGroupSpec.GracefulShutdownTimeout = *c.common.GetgracefulShutdownTimeoutSeconds()
+		mergedRoleGroupSpec.GracefulShutdownTimeout = *c.common.GetgracefulShutdownTimeout()
 	}
 	mergedCfg.RoleGroupConfigSpec = mergedRoleGroupSpec
 

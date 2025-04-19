@@ -144,7 +144,7 @@ func (a *ApierRoleResourceReconcilerBuilder) authentication(
 	}
 	// add authentication envs
 	authEnvs := authResult.Config
-	var sortAuthEnvs util.SortedMap = make(util.SortedMap)
+	var sortAuthEnvs = make(util.SortedMap)
 	for k, v := range authEnvs {
 		sortAuthEnvs[k] = v
 	}
@@ -169,7 +169,7 @@ func (a *ApierRoleResourceReconcilerBuilder) authentication(
 func (a *ApierRoleResourceReconcilerBuilder) apiServerCommandArgs(
 	containerbuilder *common.ContainerBuilder) string {
 	args := containerbuilder.GetCommandArgs()
-	var apiServerCommandArgs []string = make([]string, 0)
+	var apiServerCommandArgs = make([]string, 0)
 	apiServerCommandArgs = append(apiServerCommandArgs, security.ExtractLdapCredintialsAndExportCommand())
 	apiServerCommandArgs = append(apiServerCommandArgs, args...)
 	return strings.Join(apiServerCommandArgs, "\n")
