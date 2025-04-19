@@ -26,10 +26,8 @@ func NewRoleReconciler(
 	spec dolphinv1alpha1.RoleSpec,
 	roleResourceReconcilersBuilder RoleResourceReconcilersBuilder,
 ) *RoleReconciler {
-	stopped := false
-	if clusterOperation != nil && clusterOperation.Stopped {
-		stopped = true
-	}
+	stopped := clusterOperation != nil && clusterOperation.Stopped
+
 	return &RoleReconciler{
 		BaseRoleReconciler: *reconciler.NewBaseRoleReconciler(
 			client,

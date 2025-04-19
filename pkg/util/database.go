@@ -47,27 +47,37 @@ func (d *DataBaseExtractor) CredentialsInSecret(secretRefName string, namespace 
 	return d
 }
 
-// extract database info from connection string
 func (d *DataBaseExtractor) ExtractDatabaseInfo(ctx context.Context) (*DatabaseConfig, error) {
 	if d.ConnectionString == nil {
 		return nil, errors.New("connection string is empty")
 	}
 
-	// extract database info from connection string
-	// e.g. jdbc:postgresql://127.0.0.1:5432/dolphinscheduler?user=root&password=root
-	// or jdbc:mysql://127.0.0.1:3306/dolphinscheduler?user=root&password=root
-	dbInfo := &DatabaseConfig{}
+	dbInfo, err := d.parseConnectionString()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := d.setCredentials(dbInfo); err != nil {
+		return nil, err
+	}
+
+	return dbInfo, nil
+}
+
+func (d *DataBaseExtractor) parseConnectionString() (*DatabaseConfig, error) {
 	parts := strings.Split(*d.ConnectionString, ":")
 	if len(parts) < 3 {
 		return nil, errors.New("invalid connection string")
 	}
+
+	dbInfo := &DatabaseConfig{}
 	dbInfo.DbType = parts[1]
+
 	driver, err := GetDatabaseDriver(dbInfo.DbType)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get database driver")
-	} else {
-		dbInfo.Driver = driver
 	}
+	dbInfo.Driver = driver
 
 	hostParts := strings.Split(parts[2], "/")
 	if len(hostParts) < 2 {
@@ -81,49 +91,70 @@ func (d *DataBaseExtractor) ExtractDatabaseInfo(ctx context.Context) (*DatabaseC
 	dbParts := strings.Split(portParts[1], "?")
 	dbInfo.DbName = dbParts[0]
 
+	return dbInfo, nil
+}
+
+func (d *DataBaseExtractor) setCredentials(dbInfo *DatabaseConfig) error {
 	if d.SecretReferenceName != nil {
-		// get database credential from secret
-		secret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: *d.Namespace,
-				Name:      *d.SecretReferenceName,
-			},
-		}
-		var details = map[string]interface{}{
-			"namespace":   d.Namespace,
-			"secret_name": *d.SecretReferenceName,
-		}
-		if err := d.Client.GetWithObject(d.Ctx, secret); err != nil {
-			return nil, errors.WrapWithDetails(err, "failed to get database secret", details)
-		}
-		secretData := secret.Data
-		if username, ok := secretData[ConnectionStringAuthUser]; ok {
-			dbInfo.Username = string(username)
-		} else {
-			return nil, errors.NewWithDetails("database username is empty", details)
-		}
-		if password, ok := secretData[ConnectionStringAuthPass]; ok {
-			dbInfo.Password = string(password)
-		} else {
-			return nil, errors.NewWithDetails("database password is empty", details)
-		}
+		return d.setCredentialsFromSecret(dbInfo)
+	}
+	return d.setCredentialsFromConnectionString(dbInfo)
+}
+
+func (d *DataBaseExtractor) setCredentialsFromSecret(dbInfo *DatabaseConfig) error {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: *d.Namespace,
+			Name:      *d.SecretReferenceName,
+		},
+	}
+
+	details := map[string]interface{}{
+		"namespace":   d.Namespace,
+		"secret_name": *d.SecretReferenceName,
+	}
+
+	if err := d.Client.GetWithObject(d.Ctx, secret); err != nil {
+		return errors.WrapWithDetails(err, "failed to get database secret", details)
+	}
+
+	secretData := secret.Data
+	if username, ok := secretData[ConnectionStringAuthUser]; ok {
+		dbInfo.Username = string(username)
 	} else {
-		// get database credential from connection string
-		query := strings.Split(dbParts[1], "&")
-		if len(query) == 0 {
-			return nil, errors.New("database credential is empty")
+		return errors.NewWithDetails("database username is empty", details)
+	}
+
+	if password, ok := secretData[ConnectionStringAuthPass]; ok {
+		dbInfo.Password = string(password)
+	} else {
+		return errors.NewWithDetails("database password is empty", details)
+	}
+
+	return nil
+}
+
+func (d *DataBaseExtractor) setCredentialsFromConnectionString(dbInfo *DatabaseConfig) error {
+	parts := strings.Split(*d.ConnectionString, "?")
+	if len(parts) < 2 {
+		return errors.New("database credential is empty")
+	}
+
+	query := strings.Split(parts[1], "&")
+	for _, q := range query {
+		kv := strings.Split(q, "=")
+		if len(kv) != 2 {
+			continue
 		}
-		for _, q := range query {
-			kv := strings.Split(q, "=")
-			if kv[0] == "user" || kv[0] == "username" {
-				dbInfo.Username = kv[1]
-			}
-			if kv[0] == ConnectionStringAuthPass {
-				dbInfo.Password = kv[1]
-			}
+		if kv[0] == "user" || kv[0] == "username" {
+			dbInfo.Username = kv[1]
+		}
+		if kv[0] == ConnectionStringAuthPass {
+			dbInfo.Password = kv[1]
 		}
 	}
-	return dbInfo, nil
+
+	return nil
 }
 
 // get database driver by database type

@@ -28,7 +28,7 @@ func NewServiceBuilder(client *client.Client, name string, headless bool, servic
 	for k, v := range portMap {
 		sortedPortMap[k] = v
 	}
-	var ports []corev1.ContainerPort = make([]corev1.ContainerPort, 0)
+	var ports = make([]corev1.ContainerPort, 0)
 	sortedPortMap.Range(func(k string, v interface{}) bool {
 		port, err := ToContainerPortInt32(v)
 		if err != nil {
