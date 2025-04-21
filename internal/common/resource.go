@@ -26,10 +26,8 @@ func CreateDeploymentReconciler(
 	volumes []corev1.Volume) reconciler.ResourceReconciler[builder.DeploymentBuilder] {
 	container := contanerBuilder.Build()
 	// stopped
-	stopped := false
-	if clusterOperation != nil && clusterOperation.Stopped {
-		stopped = true
-	}
+	stopped := clusterOperation != nil && clusterOperation.Stopped
+
 	return NewDeploymentReconciler(
 		ctx,
 		client,
@@ -57,10 +55,8 @@ func CreateStatefulSetReconciler(
 	pvcName string) reconciler.ResourceReconciler[builder.StatefulSetBuilder] {
 	container := containerBuilder.Build()
 	// stopped
-	stopped := false
-	if clusterOperation != nil && clusterOperation.Stopped {
-		stopped = true
-	}
+	stopped := clusterOperation != nil && clusterOperation.Stopped
+
 	var storageSize *resource.Quantity
 	resource := roleGroupConfig.Resources
 	if resource != nil && resource.Storage != nil {
