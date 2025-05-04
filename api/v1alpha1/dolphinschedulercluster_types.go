@@ -88,6 +88,7 @@ type DolphinschedulerClusterList struct {
 // DolphinschedulerClusterSpec defines the desired state of DolphinschedulerCluster
 type DolphinschedulerClusterSpec struct {
 	// +kubebuilder:validation:Optional
+	// +default:value={"repo": "quay.io/zncdatadev", "pullPolicy": "IfNotPresent"}
 	Image *ImageSpec `json:"image"`
 
 	// +kubebuilder:validation:Optional
