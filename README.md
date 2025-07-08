@@ -13,28 +13,22 @@ together seamlessly. Based on Kubernetes, it runs everywhere – on prem or in t
 
 ## Quick Start
 
-### Add helm repository
+### Install Requirements Dependencies
 
-> Please make sure helm version is v3.0.0+
-
-```bash
-helm repo add kubedoop https://zncdatadev.github.io/kubedoop-helm-charts/
-```
-
-### Add required dependencies
+> Please make sure helm version is v3.8.0+
 
 ```bash
-helm install commons-operator kubedoop/commons-operator
-helm install listener-operator kubedoop/listener-operator
-helm install secret-operator kubedoop/secret-operator
+helm install commons-operator oci://quay.io/kubedoopcharts/commons-operator
+helm install listener-operator oci://quay.io/kubedoopcharts/listener-operator
+helm install secret-operator oci://quay.io/kubedoopcharts/secret-operator
 
-helm install zookeeper-operator kubedoop/zookeeper-operator
+helm install zookeeper-operator oci://quay.io/kubedoopcharts/zookeeper-operator
 ```
 
 ### Add dolphinscheduler-operator
 
 ```bash
-helm install dolphinscheduler-operator kubedoop/dolphinscheduler-operator
+helm install dolphinscheduler-operator oci://quay.io/kubedoopcharts/dolphinscheduler-operator
 ```
 
 ### Deploy dolphinscheduler cluster
