@@ -37,19 +37,10 @@ spec:
     - sleep:
         duration: 10s
     catch:
-      - sleep:
-          duration: 5s
-      - script:
-          env:
-            - name: NAMESPACE
-              value: ($namespace)
-          content: |
-            set -ex
-            kubectl -n $NAMESPACE get pods
+      - get:
+          apiVersion: v1
+          kind: Pod
+          namespace: '*'
       - describe:
           apiVersion: v1
           kind: Pod
-          selector: app.kubernetes.io/instance=test-dolphinscheduler
-      - podLogs:
-          selector: app.kubernetes.io/instance=test-dolphinscheduler
-          tail: -1
