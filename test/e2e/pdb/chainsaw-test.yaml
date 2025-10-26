@@ -54,10 +54,12 @@ spec:
     - sleep:
         duration: 10s
     catch:
-      - get:
-          apiVersion: v1
-          kind: Pod
-          namespace: '*'
-      - describe:
-          apiVersion: v1
-          kind: Pod
+    - get:
+        apiVersion: v1
+        kind: Pod
+        namespace: '*'
+    - describe:
+        apiVersion: v1
+        kind: Pod
+    - podLogs:
+        namespace: ($namespace)
