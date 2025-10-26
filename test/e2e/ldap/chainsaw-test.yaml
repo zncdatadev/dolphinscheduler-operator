@@ -8,21 +8,17 @@ spec:
     value: test
   - name: POSTGRESQL_PASSWORD
     value: test
-  - name: LDAP_ADMIN_USERNAME
-    value: admin
-  - name: LDAP_ADMIN_PASSWORD
-    value: admin
-  - name: DOLPHIN_USER1
-    value: dolphinscheduler
-  - name: DOLPHIN_PASSWORD1
-    value: dolphinscheduler
+  - name: LDAP_DOLPHIN_USERNAME
+    value: dolphin
+  - name: LDAP_DOLPHIN_PASSWORD
+    value: dolphin123
   - name: LDAP_BASE_DN
-    value: ou=users,dc=example,dc=com
+    value: ou=people,dc=example,dc=com
   - name: LDAP_ROOT_DC
     value: dc=example,dc=com
-  - name: DOLPHIN_LDAP_SERVICE_USER
-    value: uid=ldapadmin,ou=users,dc=example,dc=com
-  - name: DOLPHIN_LDAP_SERVICE_PASSWORD
+  - name: LDAP_ADMIN_DN
+    value: cn=admin,ou=people,dc=example,dc=com
+  - name: LDAP_ADMIN_PASSWORD
     value: ldapadmin
   steps:
   - try:
@@ -32,14 +28,14 @@ spec:
         file: ../setup/database-assert.yaml
   - try:
     - apply:
-        file: openldap.yaml
+        file: ldap-install.yaml
     - assert:
-        file: openldap-assert.yaml
+        file: ldap-install-assert.yaml
   - try:
     - apply:
-        file: ldap.yaml
+        file: ldap-authentication.yaml
     - assert:
-        file: ldap-assert.yaml
+        file: ldap-authentication-assert.yaml
   - try:
     - apply:
         file: ../setup/zookeeper.yaml
@@ -55,19 +51,12 @@ spec:
     - sleep:
         duration: 30s
     catch:
-      - sleep:
-          duration: 5s
-      - script:
-          env:
-            - name: NAMESPACE
-              value: ($namespace)
-          content: |
-            set -ex
-            kubectl -n $NAMESPACE get pods
-      - describe:
-          apiVersion: v1
-          kind: Pod
-          selector: app.kubernetes.io/instance=test-dolphinscheduler
-      - podLogs:
-          selector: app.kubernetes.io/instance=test-dolphinscheduler
-          tail: -1
+    - get:
+        apiVersion: v1
+        kind: Pod
+        namespace: '*'
+    - describe:
+        apiVersion: v1
+        kind: Pod
+    - podLogs:
+        namespace: ($namespace)

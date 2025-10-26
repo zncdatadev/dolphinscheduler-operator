@@ -7,26 +7,13 @@ spec:
     ldap:
       bindCredentials:
         secretClass: ldap-credentials
-        # scope:
-        #   pod: true
       hostname: openldap
       port: 1389
       ldapFieldNames:
         email: mail
         uid: uid
-      searchBase: ($LDAP_BASE_DN)
+      searchBase: ($LDAP_ROOT_DC)
       searchFilter: ""
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: ldap-credentials
-  labels:
-    secrets.kubedoop.dev/class: ldap-credentials
-type: Opaque
-stringData:
-  user: ($DOLPHIN_LDAP_SERVICE_USER)
-  password: ($DOLPHIN_LDAP_SERVICE_PASSWORD)
 ---
 apiVersion: secrets.kubedoop.dev/v1alpha1
 kind: SecretClass
@@ -37,3 +24,14 @@ spec:
     k8sSearch:
       searchNamespace:
         pod: {}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ldap-credentials
+  labels:
+    secrets.kubedoop.dev/class: ldap-credentials
+type: Opaque
+stringData:
+  user: ($LDAP_ADMIN_DN)
+  password: ($LDAP_ADMIN_PASSWORD)
