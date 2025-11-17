@@ -6,6 +6,7 @@ import (
 	"path"
 	"strings"
 
+	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdatadev/dolphinscheduler-operator/pkg/util"
 	"github.com/zncdatadev/operator-go/pkg/constants"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
@@ -132,4 +133,25 @@ func ToContainerPortInt32(n interface{}) (int32Port int32, err error) {
 	default:
 		return 0, fmt.Errorf("unexpected type %T to convert to int32", v)
 	}
+}
+
+func CreateServiceMetricsName(roleGroupInfo *reconciler.RoleGroupInfo) string {
+	return roleGroupInfo.GetFullName() + "-metrics"
+}
+
+func GetMetricsPort(role util.Role) (int32, error) {
+	var metricsPort int32
+	switch role {
+	case Master:
+		metricsPort = dolphinv1alpha1.MasterActualPort
+	case Alerter:
+		metricsPort = dolphinv1alpha1.AlerterActualPort
+	case Worker:
+		metricsPort = dolphinv1alpha1.WorkerActualPort
+	case Api:
+		metricsPort = dolphinv1alpha1.ApiPort
+	default:
+		return 0, fmt.Errorf("unknown role for metrics port: %s", role)
+	}
+	return metricsPort, nil
 }

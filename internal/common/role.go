@@ -84,19 +84,25 @@ func (r *RoleReconciler) RegisterResources(ctx context.Context) error {
 			return err
 		}
 
-		info := &reconciler.RoleGroupInfo{
+		roleGroupInfo := &reconciler.RoleGroupInfo{
 			RoleInfo:      r.RoleInfo,
 			RoleGroupName: name,
 		}
 		reconcilers, err := r.RegisterResourceWithRoleGroup(
 			ctx,
 			roleGroup.Replicas,
-			info,
+			roleGroupInfo,
 			overrides,
 			mergedConfig.RoleGroupConfigSpec,
 		)
 		if err != nil {
 			return err
+		}
+
+		// add metrics service reconciler
+		metricsService := NewRoleGroupMetricsService(r.Client, roleGroupInfo)
+		if metricsService != nil {
+			reconcilers = append(reconcilers, metricsService)
 		}
 
 		for _, reconciler := range reconcilers {

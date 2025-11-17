@@ -1,9 +1,14 @@
 package common
 
 import (
+	"fmt"
+	"strconv"
+
+	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdatadev/dolphinscheduler-operator/pkg/util"
 	"github.com/zncdatadev/operator-go/pkg/builder"
 	"github.com/zncdatadev/operator-go/pkg/client"
+	opconstants "github.com/zncdatadev/operator-go/pkg/constants"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
@@ -60,4 +65,94 @@ func NewServiceBuilder(client *client.Client, name string, headless bool, servic
 		sbo.ListenerClass = listenerClass
 	})
 	return b
+}
+
+func NewRoleGroupService(
+	client *client.Client,
+	roleGroupInfo *reconciler.RoleGroupInfo,
+	listenerClass opconstants.ListenerClass,
+	headless bool,
+	portsProvider ServicePortProvider,
+) reconciler.ResourceReconciler[builder.ServiceBuilder] {
+	// Check if portsProvider also implements builder.ServiceBuilder
+	if serviceBuilder, ok := portsProvider.(builder.ServiceBuilder); ok {
+		// If it's already a ServiceBuilder, use it directly
+		return reconciler.NewGenericResourceReconciler(
+			client,
+			serviceBuilder,
+		)
+	}
+
+	panic("portsProvider does not implement builder.ServiceBuilder")
+}
+
+type ServicePortProvider interface {
+	GetServicePorts() []corev1.ContainerPort
+}
+
+// NewRoleGroupMetricsService creates a metrics service reconciler using a simple function approach
+// This creates a headless service for metrics with Prometheus labels and annotations
+func NewRoleGroupMetricsService(
+	client *client.Client,
+	roleGroupInfo *reconciler.RoleGroupInfo,
+) reconciler.Reconciler {
+	roleName := roleGroupInfo.GetRoleName()
+	role := util.Role(roleName)
+	// Get metrics port
+	metricsPort, err := GetMetricsPort(role)
+	if err != nil {
+		// Return empty reconciler on error - should not happen
+		fmt.Printf("GetMetricsPort error for role %v: %v. Skipping JMX configuration.\n", roleName, err)
+		return nil
+	}
+
+	// Create service ports
+	servicePorts := []corev1.ContainerPort{
+		{
+			Name:          dolphinv1alpha1.MetricsPortName,
+			ContainerPort: metricsPort,
+			Protocol:      corev1.ProtocolTCP,
+		},
+	}
+
+	// Create service name with -metrics suffix
+	serviceName := CreateServiceMetricsName(roleGroupInfo)
+
+	scheme := "http"
+
+	// Prepare labels (copy from roleGroupInfo and add metrics labels)
+	labels := make(map[string]string)
+	for k, v := range roleGroupInfo.GetLabels() {
+		labels[k] = v
+	}
+	labels["prometheus.io/scrape"] = "true"
+
+	// Prepare annotations (copy from roleGroupInfo and add Prometheus annotations)
+	annotations := make(map[string]string)
+	for k, v := range roleGroupInfo.GetAnnotations() {
+		annotations[k] = v
+	}
+	annotations["prometheus.io/scrape"] = "true"
+	annotations["prometheus.io/path"] = "/actuator/prometheus"
+	annotations["prometheus.io/port"] = strconv.Itoa(int(metricsPort))
+	annotations["prometheus.io/scheme"] = scheme
+
+	// Create base service builder
+	baseBuilder := builder.NewServiceBuilder(
+		client,
+		serviceName,
+		servicePorts,
+		func(sbo *builder.ServiceBuilderOptions) {
+			sbo.Headless = true
+			sbo.ListenerClass = opconstants.ClusterInternal
+			sbo.Labels = labels
+			sbo.MatchingLabels = roleGroupInfo.GetLabels() // Use original labels for matching
+			sbo.Annotations = annotations
+		},
+	)
+
+	return reconciler.NewGenericResourceReconciler(
+		client,
+		baseBuilder,
+	)
 }
