@@ -67,29 +67,6 @@ func NewServiceBuilder(client *client.Client, name string, headless bool, servic
 	return b
 }
 
-func NewRoleGroupService(
-	client *client.Client,
-	roleGroupInfo *reconciler.RoleGroupInfo,
-	listenerClass opconstants.ListenerClass,
-	headless bool,
-	portsProvider ServicePortProvider,
-) reconciler.ResourceReconciler[builder.ServiceBuilder] {
-	// Check if portsProvider also implements builder.ServiceBuilder
-	if serviceBuilder, ok := portsProvider.(builder.ServiceBuilder); ok {
-		// If it's already a ServiceBuilder, use it directly
-		return reconciler.NewGenericResourceReconciler(
-			client,
-			serviceBuilder,
-		)
-	}
-
-	panic("portsProvider does not implement builder.ServiceBuilder")
-}
-
-type ServicePortProvider interface {
-	GetServicePorts() []corev1.ContainerPort
-}
-
 // NewRoleGroupMetricsService creates a metrics service reconciler using a simple function approach
 // This creates a headless service for metrics with Prometheus labels and annotations
 func NewRoleGroupMetricsService(
@@ -102,7 +79,7 @@ func NewRoleGroupMetricsService(
 	metricsPort, err := GetMetricsPort(role)
 	if err != nil {
 		// Return empty reconciler on error - should not happen
-		fmt.Printf("GetMetricsPort error for role %v: %v. Skipping JMX configuration.\n", roleName, err)
+		fmt.Printf("GetMetricsPort error for role %v: %v. Skipping metrics service creation.\n", roleName, err)
 		return nil
 	}
 
