@@ -62,6 +62,8 @@ const (
 	AlerterActualPortName = "actual-port"
 	AlerterPort           = 50052
 	AlerterActualPort     = 50053
+
+	MetricsPortName = "metrics"
 )
 
 // +kubebuilder:object:root=true
