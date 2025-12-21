@@ -38,21 +38,15 @@ spec:
           - name: NAMESPACE
             value: ($namespace)
           content: |
-            #!/bin/bash
             set -ex
 
             echo "Namespace: $NAMESPACE"
 
-            # Define components and their metrics ports
-            declare -A COMPONENTS=(
-              ["master"]="5679"
-              ["worker"]="1235"
-              ["api"]="12345"
-              ["alert"]="50053"
-            )
+            # Test each component with its metrics port
+            test_component() {
+              COMPONENT=$1
+              PORT=$2
 
-            for COMPONENT in "${!COMPONENTS[@]}"; do
-              PORT="${COMPONENTS[$COMPONENT]}"
               echo "=== Testing Component: $COMPONENT (port $PORT) ==="
 
               # Get pods for this component
@@ -62,7 +56,7 @@ spec:
 
               if [ -z "$PODS" ]; then
                 echo "ERROR: No pods found for component $COMPONENT"
-                exit 1
+                return 1
               fi
 
               echo "Found pods: $PODS"
@@ -75,14 +69,12 @@ spec:
                 PF_PID=$!
                 sleep 3
 
-                trap "kill $PF_PID 2>/dev/null || true" EXIT
-
                 # Test metrics endpoint accessibility
                 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/actuator/prometheus || echo "000")
-                if [[ "$HTTP_CODE" != "200" ]]; then
+                if [ "$HTTP_CODE" != "200" ]; then
                   echo "ERROR: Failed to access metrics endpoint for $COMPONENT, HTTP code: $HTTP_CODE"
                   kill $PF_PID 2>/dev/null || true
-                  exit 1
+                  return 1
                 fi
 
                 # Fetch metrics
@@ -92,14 +84,14 @@ spec:
                 if ! echo "$METRICS" | grep -q "# TYPE"; then
                   echo "ERROR: Missing Prometheus format (# TYPE) for $COMPONENT"
                   kill $PF_PID 2>/dev/null || true
-                  exit 1
+                  return 1
                 fi
 
                 # Verify JVM metrics present
                 if ! echo "$METRICS" | grep -q "jvm_"; then
                   echo "ERROR: Missing JVM metrics for $COMPONENT"
                   kill $PF_PID 2>/dev/null || true
-                  exit 1
+                  return 1
                 fi
 
                 # Verify specific metrics
@@ -113,7 +105,12 @@ spec:
                 kill $PF_PID 2>/dev/null || true
                 sleep 1
               done
-            done
+            }
+
+            # Test all components (API doesn't have actuator/prometheus endpoint)
+            test_component "master" "5679" || exit 1
+            test_component "worker" "1235" || exit 1
+            test_component "alert" "50053" || exit 1
 
             echo "✓ All components metrics verified"
 
@@ -125,7 +122,6 @@ spec:
             - name: NAMESPACE
               value: ($namespace)
           content: |
-            #!/bin/bash
             set -ex
 
             echo "=== Environment Check ==="
@@ -157,7 +153,6 @@ spec:
             - name: NAMESPACE
               value: ($namespace)
           content: |
-            #!/bin/bash
             set -e
 
             # Wait for Prometheus server pod
@@ -168,8 +163,6 @@ spec:
             kubectl port-forward -n "$NAMESPACE" svc/prometheus-server 9090:80 > /dev/null 2>&1 &
             PF_PID=$!
             sleep 2
-
-            trap "kill $PF_PID 2>/dev/null || true" EXIT
 
             # Check targets
             TARGETS=$(curl -s http://localhost:9090/api/v1/targets)
@@ -184,14 +177,13 @@ spec:
               echo "WARNING: No active targets found"
             fi
 
-            # Check for DolphinScheduler targets
+            # Check for DolphinScheduler targets (excluding API as it has no metrics endpoint)
             echo "Looking for DolphinScheduler targets..."
 
-            # Define expected components
-            COMPONENTS=("master" "worker" "api" "alert")
+            # Check each component
             FOUND_COUNT=0
 
-            for COMPONENT in "${COMPONENTS[@]}"; do
+            for COMPONENT in master worker alert; do
               if echo "$TARGETS" | grep -q "test-dolphinscheduler-observability-$COMPONENT"; then
                 echo "✓ Found $COMPONENT target"
                 FOUND_COUNT=$((FOUND_COUNT + 1))
@@ -207,6 +199,9 @@ spec:
               fi
             done
 
+            # Cleanup
+            kill $PF_PID 2>/dev/null || true
+
             if [ "$FOUND_COUNT" -eq 0 ]; then
               echo "ERROR: No DolphinScheduler targets found in Prometheus"
               echo "Available targets:"
@@ -214,4 +209,4 @@ spec:
               exit 1
             fi
 
-            echo "✓ Prometheus targets verification complete (found $FOUND_COUNT/4 components)"
+            echo "✓ Prometheus targets verification complete (found $FOUND_COUNT/3 components)"

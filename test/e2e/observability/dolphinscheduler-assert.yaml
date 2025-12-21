@@ -44,29 +44,6 @@ spec:
     app.kubernetes.io/instance: test-dolphinscheduler-observability
     app.kubernetes.io/component: worker
 ---
-# API metrics service
-apiVersion: v1
-kind: Service
-metadata:
-  name: test-dolphinscheduler-observability-api-default-metrics
-  labels:
-    prometheus.io/scrape: "true"
-  annotations:
-    prometheus.io/scrape: "true"
-    prometheus.io/port: "12345"
-    prometheus.io/scheme: "http"
-    prometheus.io/path: "/actuator/prometheus"
-spec:
-  clusterIP: None
-  ports:
-    - name: metrics
-      port: 12345
-      protocol: TCP
-      targetPort: metrics
-  selector:
-    app.kubernetes.io/instance: test-dolphinscheduler-observability
-    app.kubernetes.io/component: api
----
 # Alerter metrics service
 apiVersion: v1
 kind: Service
