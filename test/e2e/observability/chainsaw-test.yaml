@@ -1,0 +1,217 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: smoke-observability
+spec:
+  bindings:
+  - name: POSTGRESQL_USERNAME
+    value: test
+  - name: POSTGRESQL_PASSWORD
+    value: test
+  steps:
+  # 0. Install dependencies (PostgreSQL and ZooKeeper)
+  - name: install dependencies
+    try:
+      - apply:
+          file: ../setup/database.yaml
+      - assert:
+          file: ../setup/database-assert.yaml
+      - apply:
+          file: ../setup/zookeeper.yaml
+      - assert:
+          file: ../setup/zookeeper-assert.yaml
+
+  # 1. Install DolphinScheduler
+  - name: install dolphinscheduler
+    try:
+      - apply:
+          file: dolphinscheduler.yaml
+      - assert:
+          timeout: 400s
+          file: dolphinscheduler-assert.yaml
+
+  # 2. Verify metrics port connectivity and format for all components
+  - name: verify metrics connectivity
+    try:
+      - script:
+          bindings:
+          - name: NAMESPACE
+            value: ($namespace)
+          content: |
+            #!/bin/bash
+            set -ex
+
+            echo "Namespace: $NAMESPACE"
+
+            # Define components and their metrics ports
+            declare -A COMPONENTS=(
+              ["master"]="5679"
+              ["worker"]="1235"
+              ["api"]="12345"
+              ["alert"]="50053"
+            )
+
+            for COMPONENT in "${!COMPONENTS[@]}"; do
+              PORT="${COMPONENTS[$COMPONENT]}"
+              echo "=== Testing Component: $COMPONENT (port $PORT) ==="
+
+              # Get pods for this component
+              PODS=$(kubectl get pods -n "$NAMESPACE" \
+                -l app.kubernetes.io/component=$COMPONENT,app.kubernetes.io/instance=test-dolphinscheduler-observability \
+                -o jsonpath='{.items[*].metadata.name}')
+
+              if [ -z "$PODS" ]; then
+                echo "ERROR: No pods found for component $COMPONENT"
+                exit 1
+              fi
+
+              echo "Found pods: $PODS"
+
+              for POD in $PODS; do
+                echo "Testing Pod: $POD"
+
+                # Port-forward to pod
+                kubectl port-forward -n "$NAMESPACE" "$POD" $PORT:$PORT > /dev/null 2>&1 &
+                PF_PID=$!
+                sleep 3
+
+                trap "kill $PF_PID 2>/dev/null || true" EXIT
+
+                # Test metrics endpoint accessibility
+                HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/actuator/prometheus || echo "000")
+                if [[ "$HTTP_CODE" != "200" ]]; then
+                  echo "ERROR: Failed to access metrics endpoint for $COMPONENT, HTTP code: $HTTP_CODE"
+                  kill $PF_PID 2>/dev/null || true
+                  exit 1
+                fi
+
+                # Fetch metrics
+                METRICS=$(curl -s http://localhost:$PORT/actuator/prometheus)
+
+                # Verify Prometheus format
+                if ! echo "$METRICS" | grep -q "# TYPE"; then
+                  echo "ERROR: Missing Prometheus format (# TYPE) for $COMPONENT"
+                  kill $PF_PID 2>/dev/null || true
+                  exit 1
+                fi
+
+                # Verify JVM metrics present
+                if ! echo "$METRICS" | grep -q "jvm_"; then
+                  echo "ERROR: Missing JVM metrics for $COMPONENT"
+                  kill $PF_PID 2>/dev/null || true
+                  exit 1
+                fi
+
+                # Verify specific metrics
+                if ! echo "$METRICS" | grep -q "jvm_memory_used_bytes"; then
+                  echo "WARNING: Expected metric 'jvm_memory_used_bytes' not found for $COMPONENT"
+                fi
+
+                echo "✓ Pod $POD ($COMPONENT) metrics OK"
+
+                # Cleanup
+                kill $PF_PID 2>/dev/null || true
+                sleep 1
+              done
+            done
+
+            echo "✓ All components metrics verified"
+
+  # 3. Install Prometheus
+  - name: install prometheus
+    try:
+      - script:
+          bindings:
+            - name: NAMESPACE
+              value: ($namespace)
+          content: |
+            #!/bin/bash
+            set -ex
+
+            echo "=== Environment Check ==="
+            echo "NAMESPACE variable: '$NAMESPACE'"
+            echo "NAMESPACE length: ${#NAMESPACE}"
+            if [ -z "$NAMESPACE" ]; then
+              echo "ERROR: NAMESPACE is empty!"
+              exit 1
+            fi
+
+            helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 2>/dev/null || true
+            helm repo update
+
+            echo "=== Installing Prometheus ==="
+            echo "Will install to namespace: $NAMESPACE"
+
+            helm upgrade --install prometheus prometheus-community/prometheus \
+              --version 25.3.1 \
+              --namespace "$NAMESPACE" \
+              --create-namespace \
+              -f prometheus-values.yaml \
+              --wait --timeout 5m
+
+  # 4. Verify Prometheus targets
+  - name: verify prometheus targets
+    try:
+      - script:
+          bindings:
+            - name: NAMESPACE
+              value: ($namespace)
+          content: |
+            #!/bin/bash
+            set -e
+
+            # Wait for Prometheus server pod
+            kubectl wait --for=condition=Ready pod -l app=prometheus,component=server -n "$NAMESPACE" --timeout=300s 2>/dev/null || true
+            sleep 3
+
+            # Port-forward
+            kubectl port-forward -n "$NAMESPACE" svc/prometheus-server 9090:80 > /dev/null 2>&1 &
+            PF_PID=$!
+            sleep 2
+
+            trap "kill $PF_PID 2>/dev/null || true" EXIT
+
+            # Check targets
+            TARGETS=$(curl -s http://localhost:9090/api/v1/targets)
+
+            echo "=== Checking Prometheus Targets ==="
+
+            # Check if we have any active targets
+            ACTIVE=$(echo "$TARGETS" | grep -o '"health":"up"' | wc -l)
+            echo "Total active targets: $ACTIVE"
+
+            if [ "$ACTIVE" -eq 0 ]; then
+              echo "WARNING: No active targets found"
+            fi
+
+            # Check for DolphinScheduler targets
+            echo "Looking for DolphinScheduler targets..."
+
+            # Define expected components
+            COMPONENTS=("master" "worker" "api" "alert")
+            FOUND_COUNT=0
+
+            for COMPONENT in "${COMPONENTS[@]}"; do
+              if echo "$TARGETS" | grep -q "test-dolphinscheduler-observability-$COMPONENT"; then
+                echo "✓ Found $COMPONENT target"
+                FOUND_COUNT=$((FOUND_COUNT + 1))
+
+                # Verify target is UP
+                if echo "$TARGETS" | grep "test-dolphinscheduler-observability-$COMPONENT" | grep -q '"health":"up"'; then
+                  echo "  ✓ $COMPONENT target is UP"
+                else
+                  echo "  WARNING: $COMPONENT target found but not UP"
+                fi
+              else
+                echo "  WARNING: $COMPONENT target not found"
+              fi
+            done
+
+            if [ "$FOUND_COUNT" -eq 0 ]; then
+              echo "ERROR: No DolphinScheduler targets found in Prometheus"
+              echo "Available targets:"
+              echo "$TARGETS" | grep -o '"job":"[^"]*"' | sort | uniq
+              exit 1
+            fi
+
+            echo "✓ Prometheus targets verification complete (found $FOUND_COUNT/4 components)"
