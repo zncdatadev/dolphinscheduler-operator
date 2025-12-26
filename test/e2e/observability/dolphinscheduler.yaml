@@ -1,0 +1,46 @@
+---
+apiVersion: zookeeper.kubedoop.dev/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  name: test-dolphinscheduler-observability-znode
+spec:
+  clusterRef:
+    name: test-zk
+---
+# postgresql credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgresql-credentials
+type: Opaque
+data:
+  username: dGVzdA==
+  password: dGVzdA==
+---
+apiVersion: dolphinscheduler.kubedoop.dev/v1alpha1
+kind: DolphinschedulerCluster
+metadata:
+  name: test-dolphinscheduler-observability
+spec:
+  clusterConfig:
+    zookeeperConfigMapName: test-dolphinscheduler-observability-znode
+    database:
+      databaseType: postgresql
+      connectionString: jdbc:postgresql://postgresql:5432/dolphinscheduler
+      credentialsSecret: postgresql-credentials
+  master:
+    roleGroups:
+      default:
+        replicas: 1
+  worker:
+    roleGroups:
+      default:
+        replicas: 1
+  api:
+    roleGroups:
+      default:
+        replicas: 1
+  alerter:
+    roleGroups:
+      default:
+        replicas: 1
