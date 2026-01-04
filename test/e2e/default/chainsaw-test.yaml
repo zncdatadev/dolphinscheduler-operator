@@ -20,8 +20,6 @@ spec:
     - assert:
         file: ../setup/zookeeper-assert.yaml
     catch:
-      - sleep:
-          duration: 10s
       - script:
           env:
             - name: NAMESPACE
@@ -37,20 +35,11 @@ spec:
           selector: app.kubernetes.io/name=zookeeper-operator
           tail: -1
   - try:
-    - script:
-        content: |
-          set -ex
-          free -h
-          df -h
-  - try:
     - apply:
         file: dolphinscheduler.yaml
     - assert:
         timeout: 400s
         file: dolphinscheduler-assert.yaml
-    cleanup:
-    - sleep:
-        duration: 10s
     catch:
     - get:
         apiVersion: v1

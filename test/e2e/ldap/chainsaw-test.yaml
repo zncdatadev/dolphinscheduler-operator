@@ -47,9 +47,6 @@ spec:
     - assert:
         timeout: 400s
         file: dolphinscheduler-assert.yaml
-    cleanup:
-    - sleep:
-        duration: 30s
     catch:
     - get:
         apiVersion: v1
