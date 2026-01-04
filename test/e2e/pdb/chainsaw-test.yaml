@@ -47,5 +47,12 @@ spec:
       - describe:
           apiVersion: v1
           kind: Pod
+      - describe:
+          apiVersion: v1
+          kind: StatefulSet
+      - describe:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
       - podLogs:
-          namespace: ($namespace)
+          selector: app.kubernetes.io/name=dolphinschedulercluster
+          tail: -1
