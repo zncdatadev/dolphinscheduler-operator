@@ -54,5 +54,6 @@ spec:
           apiVersion: v1
           kind: PersistentVolumeClaim
       - podLogs:
-          selector: app.kubernetes.io/name=dolphinschedulercluster
-          tail: -1
+          selector: app.kubernetes.io/name=dolphinscheduler-operator
+          namespace: dolphinscheduler-operator-system
+          tail: 100
