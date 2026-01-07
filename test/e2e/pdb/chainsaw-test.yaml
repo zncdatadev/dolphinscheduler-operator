@@ -41,6 +41,10 @@ spec:
         file: pdb-assert.yaml
     catch:
       - get:
+          apiVersion: apps/v1
+          kind: StatefulSet
+          namespace: '*'
+      - get:
           apiVersion: v1
           kind: Pod
           namespace: '*'
@@ -56,4 +60,4 @@ spec:
       - podLogs:
           selector: app.kubernetes.io/name=dolphinscheduler-operator
           namespace: dolphinscheduler-operator-system
-          tail: 100
+          tail: -1
