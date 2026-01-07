@@ -59,4 +59,4 @@ spec:
       - podLogs:
           selector: app.kubernetes.io/name=dolphinscheduler-operator
           namespace: dolphinscheduler-operator-system
-          tail: -200
+          tail: 200
