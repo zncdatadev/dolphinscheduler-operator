@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"fmt"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 )
@@ -40,7 +39,6 @@ func GenerateAllFile(ctx context.Context, confGenerator []FileContentGenerator) 
 			configLogger.Error(err, "generate config error", "generator", generator, "fileName", generator.FileName())
 			continue
 		}
-		fmt.Print(content)
 
 		data[generator.FileName()] = content
 	}
