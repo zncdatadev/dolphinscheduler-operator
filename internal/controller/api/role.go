@@ -169,7 +169,7 @@ func (a *ApierRoleResourceReconcilerBuilder) authentication(
 func (a *ApierRoleResourceReconcilerBuilder) apiServerCommandArgs(
 	containerbuilder *common.ContainerBuilder) string {
 	args := containerbuilder.GetCommandArgs()
-	var apiServerCommandArgs = make([]string, 0)
+	var apiServerCommandArgs = make([]string, 0, len(args)+1)
 	apiServerCommandArgs = append(apiServerCommandArgs, security.ExtractLdapCredintialsAndExportCommand())
 	apiServerCommandArgs = append(apiServerCommandArgs, args...)
 	return strings.Join(apiServerCommandArgs, "\n")
