@@ -112,6 +112,7 @@ func (r *DolphinschedulerClusterReconciler) Reconcile(ctx context.Context, req c
 	}
 
 	if result, err := clusterReconciler.Reconcile(ctx); util.RequeueOrError(result, err) {
+		logger.Info("Requeueing after cluster reconcile", "result", result)
 		return result, err
 	}
 
