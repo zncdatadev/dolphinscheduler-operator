@@ -50,6 +50,7 @@ spec:
     - describe:
         apiVersion: v1
         kind: Pod
+        namespace: '*'
     - describe:
         apiVersion: apps/v1
         kind: StatefulSet
