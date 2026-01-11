@@ -39,6 +39,10 @@ spec:
     - assert:
         file: pdb-assert.yaml
     catch:
+    - script:
+        content: |
+          pod=$(kubectl -n dolphinscheduler-operator-system get pods -l app.kubernetes.io/name=dolphinscheduler-operator -o jsonpath="{.items[0].metadata.name}")
+          kubectl -n dolphinscheduler-operator-system exec $pod -- curl -s http://localhost:8080/metrics | grep controller_runtime_reconcile_total
     - get:
         apiVersion: apps/v1
         kind: StatefulSet
