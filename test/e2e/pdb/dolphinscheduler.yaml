@@ -35,7 +35,15 @@ spec:
     roleGroups:
       default:
         replicas: 1
+        config:
+          resources:
+            cpu: {}
+            memory: {}
   worker:
+    config:
+      resources:
+        cpu: {}
+        memory: {}
     roleConfig:
       podDisruptionBudget:
         maxUnavailable: 2
@@ -43,6 +51,10 @@ spec:
       default:
         replicas: 1
   api:
+    config:
+      resources:
+        cpu: {}
+        memory: {}
     roleConfig:
       podDisruptionBudget:
         maxUnavailable: 2
@@ -50,6 +62,10 @@ spec:
       default:
         replicas: 1
   alerter:
+    config:
+      resources:
+        cpu: {}
+        memory: {}
     roleConfig:
       podDisruptionBudget:
         maxUnavailable: 2

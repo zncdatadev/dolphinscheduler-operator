@@ -50,7 +50,7 @@ func (a *MasterRoleResourceReconcilerBuilder) ResourceReconcilers(
 	overrides *commonsv1alpha1.OverridesSpec,
 	roleGroupConfig *commonsv1alpha1.RoleGroupConfigSpec,
 ) []reconciler.Reconciler {
-	var reconcilers []reconciler.Reconciler
+	reconcilers := make([]reconciler.Reconciler, 0, 4)
 
 	// Configmap
 	masterConfigMap := common.NewConfigMapReconciler(
