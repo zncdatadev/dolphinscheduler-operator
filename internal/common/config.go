@@ -203,28 +203,7 @@ func (c *DolphinSchedulerConfig) MergeDefaultConfig(
 		mergedRoleGroupSpec = &commonsv1alpha1.RoleGroupConfigSpec{}
 	}
 
-	// resources
-	if mergedresources := mergedRoleGroupSpec.Resources; mergedresources == nil {
-		mergedRoleGroupSpec.Resources = c.resources
-	} else {
-		if mergedCpu := mergedresources.CPU; mergedCpu == nil {
-			mergedRoleGroupSpec.Resources.CPU = c.resources.CPU
-		} else {
-			if mergedCpu.Max.IsZero() && mergedCpu.Min.IsZero() {
-				mergedRoleGroupSpec.Resources.CPU = nil
-			}
-		}
-		if mergedMemory := mergedresources.Memory; mergedMemory == nil {
-			mergedRoleGroupSpec.Resources.Memory = c.resources.Memory
-		} else {
-			if mergedMemory.Limit.IsZero() {
-				mergedRoleGroupSpec.Resources.Memory = nil
-			}
-		}
-		if mergedStorage := mergedresources.Storage; mergedStorage == nil {
-			mergedRoleGroupSpec.Resources.Storage = c.resources.Storage
-		}
-	}
+	mergedRoleGroupSpec.Resources = mergeResources(c.resources, mergedRoleGroupSpec.Resources)
 
 	// affinity
 	if mergedRoleGroupSpec.Affinity == nil {
@@ -277,6 +256,26 @@ func (c *DolphinSchedulerConfig) MergeDefaultConfig(
 	// do other merge ...
 	return nil
 
+}
+
+func mergeResources(defaultRes, mergedRes *commonsv1alpha1.ResourcesSpec) *commonsv1alpha1.ResourcesSpec {
+	if mergedRes == nil {
+		return defaultRes
+	}
+	if mergedRes.CPU == nil {
+		mergedRes.CPU = defaultRes.CPU
+	} else if mergedRes.CPU.Max.IsZero() && mergedRes.CPU.Min.IsZero() {
+		mergedRes.CPU = nil
+	}
+	if mergedRes.Memory == nil {
+		mergedRes.Memory = defaultRes.Memory
+	} else if mergedRes.Memory.Limit.IsZero() {
+		mergedRes.Memory = nil
+	}
+	if mergedRes.Storage == nil {
+		mergedRes.Storage = defaultRes.Storage
+	}
+	return mergedRes
 }
 
 func parseQuantity(q string) resource.Quantity {
