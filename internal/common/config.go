@@ -209,9 +209,17 @@ func (c *DolphinSchedulerConfig) MergeDefaultConfig(
 	} else {
 		if mergedCpu := mergedresources.CPU; mergedCpu == nil {
 			mergedRoleGroupSpec.Resources.CPU = c.resources.CPU
+		} else {
+			if mergedCpu.Max.IsZero() && mergedCpu.Min.IsZero() {
+				mergedRoleGroupSpec.Resources.CPU = nil
+			}
 		}
 		if mergedMemory := mergedresources.Memory; mergedMemory == nil {
 			mergedRoleGroupSpec.Resources.Memory = c.resources.Memory
+		} else {
+			if mergedMemory.Limit.IsZero() {
+				mergedRoleGroupSpec.Resources.Memory = nil
+			}
 		}
 		if mergedStorage := mergedresources.Storage; mergedStorage == nil {
 			mergedRoleGroupSpec.Resources.Storage = c.resources.Storage
