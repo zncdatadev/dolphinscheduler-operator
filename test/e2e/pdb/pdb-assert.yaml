@@ -18,10 +18,10 @@ metadata:
   name: test-dolphinscheduler-master
 spec:
   maxUnavailable: 2
-# ---
-# apiVersion: policy/v1
-# kind: PodDisruptionBudget
-# metadata:
-#   name: test-dolphinscheduler-worker
-# spec:
-#   maxUnavailable: 2
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: test-dolphinscheduler-worker
+spec:
+  maxUnavailable: 2

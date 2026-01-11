@@ -44,9 +44,9 @@ spec:
       resources:
         cpu: {}
         memory: {}
-    # roleConfig:
-    #   podDisruptionBudget:
-    #     maxUnavailable: 2
+    roleConfig:
+      podDisruptionBudget:
+        maxUnavailable: 2
     roleGroups:
       default:
         replicas: 1
