@@ -119,7 +119,7 @@ func (c *ContainerBuilder) GetCommandArgs() []string {
 
 // with command args
 func (c *ContainerBuilder) CommonCommandArgs() *ContainerBuilder {
-	var args []string
+	args := make([]string, 0, 6)
 	args = append(args, opgoutil.CommonBashTrapFunctions)
 	args = append(args, opgoutil.RemoveVectorShutdownFileCommand())
 	args = append(args, opgoutil.InvokePrepareSignalHandlers)
