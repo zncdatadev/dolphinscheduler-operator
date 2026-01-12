@@ -20,15 +20,10 @@ spec:
     - assert:
         file: ../setup/zookeeper-assert.yaml
     catch:
-      - sleep:
-          duration: 10s
-      - script:
-          env:
-            - name: NAMESPACE
-              value: ($namespace)
-          content: |
-            set -ex
-            kubectl -n $NAMESPACE get pods
+      - get:
+          apiVersion: v1
+          kind: Pod
+          namespace: '*'
       - describe:
           apiVersion: v1
           kind: Pod
@@ -37,23 +32,21 @@ spec:
           selector: app.kubernetes.io/name=zookeeper-operator
           tail: -1
   - try:
-    - script:
-        content: |
-          set -ex
-          free -h
-          df -h
-  - try:
     - apply:
         file: dolphinscheduler.yaml
     - assert:
-        timeout: 400s
         file: dolphinscheduler-assert.yaml
     - assert:
         file: pdb-assert.yaml
-    cleanup:
-    - sleep:
-        duration: 10s
     catch:
+    - script:
+        content: |
+          pod=$(kubectl -n dolphinscheduler-operator-system get pods -l app.kubernetes.io/name=dolphinscheduler-operator -o jsonpath="{.items[0].metadata.name}")
+          kubectl -n dolphinscheduler-operator-system exec $pod -- curl -s http://localhost:8080/metrics | grep controller_runtime_reconcile_total
+    - get:
+        apiVersion: apps/v1
+        kind: StatefulSet
+        namespace: '*'
     - get:
         apiVersion: v1
         kind: Pod
@@ -61,5 +54,16 @@ spec:
     - describe:
         apiVersion: v1
         kind: Pod
+        namespace: '*'
+    - describe:
+        apiVersion: apps/v1
+        kind: StatefulSet
+    - describe:
+        apiVersion: v1
+        kind: PersistentVolumeClaim
     - podLogs:
-        namespace: ($namespace)
+        selector: app.kubernetes.io/name=dolphinscheduler-operator
+        namespace: dolphinscheduler-operator-system
+        tail: 500
+    - events:
+        namespace: '*'
