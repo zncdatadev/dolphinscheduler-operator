@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -112,7 +113,10 @@ func (r *DolphinschedulerClusterReconciler) Reconcile(ctx context.Context, req c
 	}
 
 	if result, err := clusterReconciler.Reconcile(ctx); util.RequeueOrError(result, err) {
-		return result, err
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: time.Second}, nil
 	}
 
 	logger.Info("Cluster reconciled")
