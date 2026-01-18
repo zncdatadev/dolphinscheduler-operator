@@ -1,0 +1,104 @@
+# Master metrics service
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-dolphinscheduler-observability-master-default-metrics
+  labels:
+    prometheus.io/scrape: "true"
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "5679"
+    prometheus.io/scheme: "http"
+    prometheus.io/path: "/actuator/prometheus"
+spec:
+  clusterIP: None
+  ports:
+    - name: metrics
+      port: 5679
+      protocol: TCP
+      targetPort: metrics
+  selector:
+    app.kubernetes.io/instance: test-dolphinscheduler-observability
+    app.kubernetes.io/component: master
+---
+# Worker metrics service
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-dolphinscheduler-observability-worker-default-metrics
+  labels:
+    prometheus.io/scrape: "true"
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "1235"
+    prometheus.io/scheme: "http"
+    prometheus.io/path: "/actuator/prometheus"
+spec:
+  clusterIP: None
+  ports:
+    - name: metrics
+      port: 1235
+      protocol: TCP
+      targetPort: metrics
+  selector:
+    app.kubernetes.io/instance: test-dolphinscheduler-observability
+    app.kubernetes.io/component: worker
+---
+# Alerter metrics service
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-dolphinscheduler-observability-alert-default-metrics
+  labels:
+    prometheus.io/scrape: "true"
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "50053"
+    prometheus.io/scheme: "http"
+    prometheus.io/path: "/actuator/prometheus"
+spec:
+  clusterIP: None
+  ports:
+    - name: metrics
+      port: 50053
+      protocol: TCP
+      targetPort: metrics
+  selector:
+    app.kubernetes.io/instance: test-dolphinscheduler-observability
+    app.kubernetes.io/component: alert
+---
+# Master StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-dolphinscheduler-observability-master-default
+status:
+  replicas: 1
+  availableReplicas: 1
+---
+# Worker StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-dolphinscheduler-observability-worker-default
+status:
+  replicas: 1
+  availableReplicas: 1
+---
+# API Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-dolphinscheduler-observability-api-default
+status:
+  replicas: 1
+  availableReplicas: 1
+---
+# Alerter Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-dolphinscheduler-observability-alert-default
+status:
+  replicas: 1
+  availableReplicas: 1
