@@ -12,10 +12,10 @@ server:
             - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
               action: keep
               regex: 'true'
-            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_port, __meta_kubernetes_pod_ip]
+            - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
               action: replace
-              regex: (\d+);(.+)
-              replacement: $2:$1
+              regex: (.+):\d+;(\d+)
+              replacement: $1:$2
               target_label: __address__
 
 # Disable all unnecessary components
