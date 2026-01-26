@@ -43,11 +43,11 @@ spec:
             echo "Namespace: $NAMESPACE"
 
             # Track all port-forward PIDs for cleanup
-            PF_PIDS=()
+            PF_PIDS=""
 
             # Cleanup function to kill all port-forwards
             cleanup() {
-              for pid in "${PF_PIDS[@]}"; do
+              for pid in $PF_PIDS; do
                 kill "$pid" 2>/dev/null || true
               done
             }
@@ -89,7 +89,7 @@ spec:
                 # Port-forward to pod
                 kubectl port-forward -n "$NAMESPACE" "$POD" $PORT:$PORT > /dev/null 2>&1 &
                 PF_PID=$!
-                PF_PIDS+=($PF_PID)
+                PF_PIDS="$PF_PIDS $PF_PID"
                 sleep 3  # Allow time for kubectl port-forward to establish before hitting the metrics endpoint
 
                 # Ensure port-forward is still running before using it
@@ -165,6 +165,13 @@ spec:
 
             echo "=== Installing Prometheus ==="
             echo "Will install to namespace: $NAMESPACE"
+            helm upgrade --install prometheus-server prometheus-community/prometheus \
+              --namespace "$NAMESPACE" \
+              --create-namespace \
+              -f prometheus-values.yaml \
+              --wait --timeout 5m
+
+            # Wait for Prometheus server pod to be ready
             if ! kubectl wait --for=condition=Ready pod -l app=prometheus,component=server -n "$NAMESPACE" --timeout=300s; then
               echo "ERROR: Timed out waiting for Prometheus server pod to become Ready in namespace '$NAMESPACE'"
               echo "Current Prometheus server pods in namespace '$NAMESPACE':"
@@ -172,10 +179,22 @@ spec:
               exit 1
             fi
 
+            # Port-forward to Prometheus for endpoint check
+            kubectl port-forward -n "$NAMESPACE" svc/prometheus-server 9090:80 > /dev/null 2>&1 &
+            PF_PID=$!
+            sleep 3
+
+            # Ensure port-forward is still running
+            if ! kill -0 "$PF_PID" 2>/dev/null; then
+              echo "ERROR: Port-forward failed for Prometheus on port 9090"
+              exit 1
+            fi
+
             # Wait for Prometheus HTTP endpoint to become available (max 30s)
             for i in $(seq 1 30); do
               if curl -sSf http://localhost:9090/-/ready > /dev/null 2>&1 || \
-                 curl -sSf http://localhost:9090/api/v1/targets > /dev/null 2>&1; then
+                curl -sSf http://localhost:9090/api/v1/targets > /dev/null 2>&1; then
+                echo "✓ Prometheus endpoint is ready"
                 break
               fi
               if ! kill -0 "$PF_PID" 2>/dev/null; then
@@ -184,43 +203,9 @@ spec:
               fi
               sleep 1
             done
-            for i in $(seq 1 30); do
-              if curl -sSf http://localhost:9090/-/ready > /dev/null 2>&1 || \
-                 curl -sSf http://localhost:9090/api/v1/targets > /dev/null 2>&1; then
-                break
-              fi
-              if ! kill -0 "$PF_PID" 2>/dev/null; then
-                echo "ERROR: port-forward process exited before Prometheus became ready"
-                exit 1
-              fi
-              sleep 1
-            done
-            for i in $(seq 1 30); do
-              if curl -sSf http://localhost:9090/-/ready > /dev/null 2>&1 || \
-                 curl -sSf http://localhost:9090/api/v1/targets > /dev/null 2>&1; then
-                break
-              fi
-              if ! kill -0 "$PF_PID" 2>/dev/null; then
-                echo "ERROR: port-forward process exited before Prometheus became ready"
-                exit 1
-              fi
-              sleep 1
-            done
-            for i in $(seq 1 30); do
-              if curl -sSf http://localhost:9090/-/ready > /dev/null 2>&1 || \
-                 curl -sSf http://localhost:9090/api/v1/targets > /dev/null 2>&1; then
-                break
-              fi
-              if ! kill -0 "$PF_PID" 2>/dev/null; then
-                echo "ERROR: port-forward process exited before Prometheus became ready"
-                exit 1
-              fi
-              sleep 1
-            done
-              --namespace "$NAMESPACE" \
-              --create-namespace \
-              -f prometheus-values.yaml \
-              --wait --timeout 5m
+
+            # Cleanup port-forward
+            kill $PF_PID || true
 
   # 4. Verify Prometheus targets
   - name: verify prometheus targets
