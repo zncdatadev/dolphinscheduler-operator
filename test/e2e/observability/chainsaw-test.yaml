@@ -43,11 +43,11 @@ spec:
             echo "Namespace: $NAMESPACE"
 
             # Track all port-forward PIDs for cleanup
-            PF_PIDS=()
+            PF_PIDS=""
 
             # Cleanup function to kill all port-forwards
             cleanup() {
-              for pid in "${PF_PIDS[@]}"; do
+              for pid in $PF_PIDS; do
                 kill "$pid" 2>/dev/null || true
               done
             }
@@ -82,43 +82,54 @@ spec:
                   EXISTING_PIDS=$(lsof -ti tcp:$PORT || echo "")
                   if [ -n "$EXISTING_PIDS" ]; then
                     echo "Port $PORT is already in use, killing existing process(es): $EXISTING_PIDS"
-                    kill $EXISTING_PIDS || true
-                    sleep 1
+                    kill -9 $EXISTING_PIDS 2>/dev/null || true
+                    sleep 2
+                    # Verify port is really free
+                    REMAINING=$(lsof -ti tcp:$PORT || echo "")
+                    if [ -n "$REMAINING" ]; then
+                      echo "WARNING: Port $PORT still in use after kill, waiting..."
+                      sleep 3
+                    fi
                   fi
                 fi
                 # Port-forward to pod
                 kubectl port-forward -n "$NAMESPACE" "$POD" $PORT:$PORT > /dev/null 2>&1 &
                 PF_PID=$!
-                PF_PIDS+=($PF_PID)
-                sleep 3  # Allow time for kubectl port-forward to establish before hitting the metrics endpoint
+                PF_PIDS="$PF_PIDS $PF_PID"
+                sleep 4  # Allow time for kubectl port-forward to establish before hitting the metrics endpoint
 
                 # Ensure port-forward is still running before using it
                 if ! kill -0 "$PF_PID" 2>/dev/null; then
                   echo "ERROR: Port-forward failed for pod $POD (component $COMPONENT) on port $PORT"
                   return 1
                 fi
-                # Test metrics endpoint accessibility
-                HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/actuator/prometheus || echo "000")
+                # Test metrics endpoint accessibility with timeout
+                HTTP_CODE=$(timeout 10 curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/actuator/prometheus || echo "000")
                 if [ "$HTTP_CODE" != "200" ]; then
                   echo "ERROR: Failed to access metrics endpoint for $COMPONENT, HTTP code: $HTTP_CODE"
-                  kill $PF_PID || true
+                  kill -9 $PF_PID || true
                   return 1
                 fi
 
-                # Fetch metrics
-                METRICS=$(curl -s http://localhost:$PORT/actuator/prometheus)
+                # Fetch metrics with timeout
+                METRICS=$(timeout 10 curl -s http://localhost:$PORT/actuator/prometheus)
+                if [ -z "$METRICS" ]; then
+                  echo "ERROR: Failed to fetch metrics for $COMPONENT"
+                  kill -9 $PF_PID || true
+                  return 1
+                fi
 
                 # Verify Prometheus format
                 if ! echo "$METRICS" | grep -q "# TYPE"; then
                   echo "ERROR: Missing Prometheus format (# TYPE) for $COMPONENT"
-                  kill $PF_PID || true
+                  kill -9 $PF_PID || true
                   return 1
                 fi
 
                 # Verify JVM metrics present
                 if ! echo "$METRICS" | grep -q "jvm_"; then
                   echo "ERROR: Missing JVM metrics for $COMPONENT"
-                  kill $PF_PID || true
+                  kill -9 $PF_PID || true
                   return 1
                 fi
 
@@ -130,7 +141,7 @@ spec:
                 echo "✓ Pod $POD ($COMPONENT) metrics OK"
 
                 # Cleanup
-                kill $PF_PID || true
+                kill -9 $PF_PID || true
                 sleep 1
               done
             }
@@ -164,18 +175,39 @@ spec:
             helm repo update
 
             echo "=== Installing Prometheus ==="
-            echo "Will install to namespace: $NAMESPACE"
-            if ! kubectl wait --for=condition=Ready pod -l app=prometheus,component=server -n "$NAMESPACE" --timeout=300s; then
+            RELEASE_NAME="prometheus-server-${NAMESPACE}"
+            SVC_NAME="${RELEASE_NAME}-server"
+            echo "Will install to namespace: $NAMESPACE (release: $RELEASE_NAME)"
+            helm upgrade --install "$RELEASE_NAME" prometheus-community/prometheus \
+              --namespace "$NAMESPACE" \
+              --create-namespace \
+              -f prometheus-values.yaml \
+              --wait --timeout 5m
+
+            # Wait for Prometheus server pod to be ready
+            if ! kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=prometheus,app.kubernetes.io/instance=$RELEASE_NAME -n "$NAMESPACE" --timeout=300s; then
               echo "ERROR: Timed out waiting for Prometheus server pod to become Ready in namespace '$NAMESPACE'"
               echo "Current Prometheus server pods in namespace '$NAMESPACE':"
-              kubectl get pods -n "$NAMESPACE" -l app=prometheus,component=server || true
+              kubectl get pods -n "$NAMESPACE" -l app.kubernetes.io/name=prometheus,app.kubernetes.io/instance=$RELEASE_NAME || true
+              exit 1
+            fi
+
+            # Port-forward to Prometheus for endpoint check
+            kubectl port-forward -n "$NAMESPACE" svc/$SVC_NAME 9090:80 > /dev/null 2>&1 &
+            PF_PID=$!
+            sleep 3
+
+            # Ensure port-forward is still running
+            if ! kill -0 "$PF_PID" 2>/dev/null; then
+              echo "ERROR: Port-forward failed for Prometheus on port 9090"
               exit 1
             fi
 
             # Wait for Prometheus HTTP endpoint to become available (max 30s)
             for i in $(seq 1 30); do
               if curl -sSf http://localhost:9090/-/ready > /dev/null 2>&1 || \
-                 curl -sSf http://localhost:9090/api/v1/targets > /dev/null 2>&1; then
+                curl -sSf http://localhost:9090/api/v1/targets > /dev/null 2>&1; then
+                echo "✓ Prometheus endpoint is ready"
                 break
               fi
               if ! kill -0 "$PF_PID" 2>/dev/null; then
@@ -184,43 +216,9 @@ spec:
               fi
               sleep 1
             done
-            for i in $(seq 1 30); do
-              if curl -sSf http://localhost:9090/-/ready > /dev/null 2>&1 || \
-                 curl -sSf http://localhost:9090/api/v1/targets > /dev/null 2>&1; then
-                break
-              fi
-              if ! kill -0 "$PF_PID" 2>/dev/null; then
-                echo "ERROR: port-forward process exited before Prometheus became ready"
-                exit 1
-              fi
-              sleep 1
-            done
-            for i in $(seq 1 30); do
-              if curl -sSf http://localhost:9090/-/ready > /dev/null 2>&1 || \
-                 curl -sSf http://localhost:9090/api/v1/targets > /dev/null 2>&1; then
-                break
-              fi
-              if ! kill -0 "$PF_PID" 2>/dev/null; then
-                echo "ERROR: port-forward process exited before Prometheus became ready"
-                exit 1
-              fi
-              sleep 1
-            done
-            for i in $(seq 1 30); do
-              if curl -sSf http://localhost:9090/-/ready > /dev/null 2>&1 || \
-                 curl -sSf http://localhost:9090/api/v1/targets > /dev/null 2>&1; then
-                break
-              fi
-              if ! kill -0 "$PF_PID" 2>/dev/null; then
-                echo "ERROR: port-forward process exited before Prometheus became ready"
-                exit 1
-              fi
-              sleep 1
-            done
-              --namespace "$NAMESPACE" \
-              --create-namespace \
-              -f prometheus-values.yaml \
-              --wait --timeout 5m
+
+            # Cleanup port-forward
+            kill $PF_PID || true
 
   # 4. Verify Prometheus targets
   - name: verify prometheus targets
@@ -233,7 +231,9 @@ spec:
             set -e
 
             # Wait for Prometheus server pod
-            kubectl wait --for=condition=Ready pod -l app=prometheus,component=server -n "$NAMESPACE" --timeout=300s || true
+            RELEASE_NAME="prometheus-server-${NAMESPACE}"
+            SVC_NAME="${RELEASE_NAME}-server"
+            kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=prometheus,app.kubernetes.io/instance=$RELEASE_NAME -n "$NAMESPACE" --timeout=300s || true
             sleep 3
 
             # Cleanup function
@@ -253,7 +253,7 @@ spec:
             fi
 
             # Port-forward
-            kubectl port-forward -n "$NAMESPACE" svc/prometheus-server 9090:80 > /dev/null 2>&1 &
+            kubectl port-forward -n "$NAMESPACE" svc/$SVC_NAME 9090:80 > /dev/null 2>&1 &
             PF_PID=$!
             sleep 3
 
