@@ -32,12 +32,13 @@ spec:
     roleGroups:
       default:
         replicas: 1
-        resources:
-          cpu:
-            min: "500m"
-            max: "1000m"
-          memory:
-            limit: "2Gi"
+        config:
+          resources:
+            cpu:
+              min: "500m"
+              max: "1000m"
+            memory:
+              limit: "2Gi"
   worker:
     roleGroups:
       default:
