@@ -332,7 +332,9 @@ $(CHAINSAW): $(LOCALBIN)
 .PHONY: chainsaw-setup
 chainsaw-setup: ## Run the chainsaw setup
 	make docker-build
-	$(KIND) --name $(KIND_CLUSTER_NAME) load docker-image $(IMG)
+	$(KIND) --name $(KIND_CLUSTER_NAME) load docker-image $(IMG) || \
+		(echo "Kind load failed, trying alternative method..." && \
+		docker save $(IMG) | docker exec -i $(KIND_CLUSTER_NAME)-control-plane ctr --namespace=k8s.io image import -)
 	KUBECONFIG=$(KIND_KUBECONFIG) make helm-install-depends
 	KUBECONFIG=$(KIND_KUBECONFIG) make deploy
 
