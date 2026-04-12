@@ -37,6 +37,7 @@ cover.out
 
 # ai code local
 .codiumai.toml
+.omc
 
 docker-digests.json
 
