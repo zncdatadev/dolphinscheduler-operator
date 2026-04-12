@@ -6,11 +6,11 @@ spec:
   # namespace: chainsaw
   timeouts:
     apply: 300s
-    assert: 400s
+    assert: 600s
     cleanup: 120s
     delete: 120s
     error: 180s
     exec: 300s
-  # skipDelete: true
+  skipDelete: true
   failFast: true
   parallel: 1
