@@ -61,3 +61,6 @@ spec:
         kind: Pod
     - podLogs:
         namespace: ($namespace)
+    - podLogs:
+        selector: app.kubernetes.io/component=master
+        tail: -1
