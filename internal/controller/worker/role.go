@@ -12,6 +12,11 @@ import (
 	opgoutil "github.com/zncdatadev/operator-go/pkg/util"
 )
 
+const (
+	defaultWorkerLoadProtectionEnabled   = "false"
+	defaultWorkerLoadProtectionThreshold = "0.7"
+)
+
 func NewWorkerRole(
 	client *client.Client,
 	image *opgoutil.Image,
@@ -85,15 +90,15 @@ func (a *WorkerRoleResourceReconcilerBuilder) ResourceReconcilers(
 			dolphinv1alpha1.WorkerActualPortName: dolphinv1alpha1.WorkerActualPort,
 		}).
 		WithEnvs(util.SortedMap{
-			"DEFAULT_TENANT_ENABLED":                "false",
+			"DEFAULT_TENANT_ENABLED":                defaultWorkerLoadProtectionEnabled,
 			"WORKER_EXEC_THREADS":                   "100",
 			"WORKER_HOST_WEIGHT":                    "100",
 			"WORKER_MAX_HEARTBEAT_INTERVAL":         "10s",
-			"WORKER_SERVER_LOAD_PROTECTION_ENABLED": "false",
-			"WORKER_SERVER_LOAD_PROTECTION_MAX_DISK_USAGE_PERCENTAGE_THRESHOLDS":          "0.7",
-			"WORKER_SERVER_LOAD_PROTECTION_MAX_JVM_CPU_USAGE_PERCENTAGE_THRESHOLDS":       "0.7",
-			"WORKER_SERVER_LOAD_PROTECTION_MAX_SYSTEM_CPU_USAGE_PERCENTAGE_THRESHOLDS":    "0.7",
-			"WORKER_SERVER_LOAD_PROTECTION_MAX_SYSTEM_MEMORY_USAGE_PERCENTAGE_THRESHOLDS": "0.7",
+			"WORKER_SERVER_LOAD_PROTECTION_ENABLED": defaultWorkerLoadProtectionEnabled,
+			"WORKER_SERVER_LOAD_PROTECTION_MAX_DISK_USAGE_PERCENTAGE_THRESHOLDS":          defaultWorkerLoadProtectionThreshold,
+			"WORKER_SERVER_LOAD_PROTECTION_MAX_JVM_CPU_USAGE_PERCENTAGE_THRESHOLDS":       defaultWorkerLoadProtectionThreshold,
+			"WORKER_SERVER_LOAD_PROTECTION_MAX_SYSTEM_CPU_USAGE_PERCENTAGE_THRESHOLDS":    defaultWorkerLoadProtectionThreshold,
+			"WORKER_SERVER_LOAD_PROTECTION_MAX_SYSTEM_MEMORY_USAGE_PERCENTAGE_THRESHOLDS": defaultWorkerLoadProtectionThreshold,
 			"WORKER_TENANT_CONFIG_AUTO_CREATE_TENANT_ENABLED":                             "true",
 			"WORKER_TENANT_CONFIG_DISTRIBUTED_TENANT":                                     "false",
 		}).

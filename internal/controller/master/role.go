@@ -12,6 +12,8 @@ import (
 	opgoutil "github.com/zncdatadev/operator-go/pkg/util"
 )
 
+const defaultLoadProtectionThreshold = "0.7"
+
 func NewMasterRole(
 	client *client.Client,
 	image *opgoutil.Image,
@@ -91,10 +93,10 @@ func (a *MasterRoleResourceReconcilerBuilder) ResourceReconcilers(
 			"MASTER_KILL_APPLICATION_WHEN_HANDLE_FAILOVER": "true",
 			"MASTER_MAX_HEARTBEAT_INTERVAL":                "10s",
 			"MASTER_SERVER_LOAD_PROTECTION_ENABLED":        "false",
-			"MASTER_SERVER_LOAD_PROTECTION_MAX_DISK_USAGE_PERCENTAGE_THRESHOLDS":          "0.7",
-			"MASTER_SERVER_LOAD_PROTECTION_MAX_JVM_CPU_USAGE_PERCENTAGE_THRESHOLDS":       "0.7",
-			"MASTER_SERVER_LOAD_PROTECTION_MAX_SYSTEM_CPU_USAGE_PERCENTAGE_THRESHOLDS":    "0.7",
-			"MASTER_SERVER_LOAD_PROTECTION_MAX_SYSTEM_MEMORY_USAGE_PERCENTAGE_THRESHOLDS": "0.7",
+			"MASTER_SERVER_LOAD_PROTECTION_MAX_DISK_USAGE_PERCENTAGE_THRESHOLDS":          defaultLoadProtectionThreshold,
+			"MASTER_SERVER_LOAD_PROTECTION_MAX_JVM_CPU_USAGE_PERCENTAGE_THRESHOLDS":       defaultLoadProtectionThreshold,
+			"MASTER_SERVER_LOAD_PROTECTION_MAX_SYSTEM_CPU_USAGE_PERCENTAGE_THRESHOLDS":    defaultLoadProtectionThreshold,
+			"MASTER_SERVER_LOAD_PROTECTION_MAX_SYSTEM_MEMORY_USAGE_PERCENTAGE_THRESHOLDS": defaultLoadProtectionThreshold,
 			"MASTER_STATE_WHEEL_INTERVAL":                                                 "5s",
 			"MASTER_TASK_COMMIT_INTERVAL":                                                 "1s",
 			"MASTER_TASK_COMMIT_RETRYTIMES":                                               "5",

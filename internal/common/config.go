@@ -24,6 +24,11 @@ var configLogger = ctrl.Log.WithName("config-logger")
 
 const (
 	DefaultServerGrace = 120
+
+	// DolphinScheduler configuration defaults
+	defaultEnabled         = "true"
+	defaultDisabled        = "false"
+	defaultMinioCredential = "minioadmin"
 )
 
 var _ config.Configuration = &DolphinSchedulerConfig{}
@@ -144,10 +149,10 @@ func (c *DolphinSchedulerConfig) ComputeFile() (map[string]interface{}, error) {
 		"appId.collect":                                "log",
 		"conda.path":                                   "/opt/anaconda3/etc/profile.d/conda.sh",
 		"data.basedir.path":                            "/tmp/dolphinscheduler",
-		"datasource.encryption.enable":                 "false",
+		"datasource.encryption.enable":                 defaultDisabled,
 		"datasource.encryption.salt":                   "!@#$%^&*",
-		"development.state":                            "false",
-		"hadoop.security.authentication.startup.state": "false",
+		"development.state":                            defaultDisabled,
+		"hadoop.security.authentication.startup.state": defaultDisabled,
 		"java.security.krb5.conf.path":                 "/opt/krb5.conf",
 		"kerberos.expire.time":                         "2",
 		"login.user.keytab.path":                       "/opt/hdfs.headless.keytab",
@@ -159,18 +164,18 @@ func (c *DolphinSchedulerConfig) ComputeFile() (map[string]interface{}, error) {
 		"resource.alibaba.cloud.oss.bucket.name":       "dolphinscheduler",
 		"resource.alibaba.cloud.oss.endpoint":          "https://oss-cn-hangzhou.aliyuncs.com",
 		"resource.alibaba.cloud.region":                "cn-hangzhou",
-		"resource.azure.client.id":                     "minioadmin",
-		"resource.azure.client.secret":                 "minioadmin",
-		"resource.azure.subId":                         "minioadmin",
-		"resource.azure.tenant.id":                     "minioadmin",
+		"resource.azure.client.id":                     defaultMinioCredential,
+		"resource.azure.client.secret":                 defaultMinioCredential,
+		"resource.azure.subId":                         defaultMinioCredential,
+		"resource.azure.tenant.id":                     defaultMinioCredential,
 		"resource.hdfs.fs.defaultFS":                   "hdfs://mycluster:8020",
 		"resource.hdfs.root.user":                      "hdfs",
 		"resource.manager.httpaddress.port":            "8088",
 		"resource.storage.type":                        "LOCAL",
 		"resource.storage.upload.base.path":            "/dolphinscheduler",
-		"sudo.enable":                                  "true",
-		"support.hive.oneSession":                      "false",
-		"task.resource.limit.state":                    "false",
+		"sudo.enable":                                  defaultEnabled,
+		"support.hive.oneSession":                      defaultDisabled,
+		"task.resource.limit.state":                    defaultDisabled,
 		"yarn.application.status.address":              "http://ds1:%s/ws/v1/cluster/apps/%s",
 		"yarn.job.history.status.address":              "http://ds1:19888/ws/v1/history/mapreduce/jobs/%s",
 		"yarn.resourcemanager.ha.rm.ids":               "192.168.xx.xx,192.168.xx.xx",

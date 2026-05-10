@@ -14,6 +14,8 @@ import (
 	"k8s.io/utils/ptr"
 )
 
+const prometheusScrapeEnabled = "true"
+
 func NewServiceReconciler(
 	cli *client.Client,
 	name string,
@@ -102,14 +104,14 @@ func NewRoleGroupMetricsService(
 	for k, v := range roleGroupInfo.GetLabels() {
 		labels[k] = v
 	}
-	labels["prometheus.io/scrape"] = "true"
+	labels["prometheus.io/scrape"] = prometheusScrapeEnabled
 
 	// Prepare annotations (copy from roleGroupInfo and add Prometheus annotations)
 	annotations := make(map[string]string)
 	for k, v := range roleGroupInfo.GetAnnotations() {
 		annotations[k] = v
 	}
-	annotations["prometheus.io/scrape"] = "true"
+	annotations["prometheus.io/scrape"] = prometheusScrapeEnabled
 	annotations["prometheus.io/path"] = "/actuator/prometheus"
 	annotations["prometheus.io/port"] = strconv.Itoa(int(metricsPort))
 	annotations["prometheus.io/scheme"] = scheme
