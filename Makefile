@@ -211,7 +211,7 @@ CONTROLLER_TOOLS_VERSION ?= v0.17.1
 ENVTEST_VERSION ?= release-0.20
 GOLANGCI_LINT_VERSION ?= v2.8.0
 HELM_VERSION ?= v3.17.0
-KIND_VERSION ?= v0.26.0
+KIND_VERSION ?= v0.31.0
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -332,7 +332,9 @@ $(CHAINSAW): $(LOCALBIN)
 .PHONY: chainsaw-setup
 chainsaw-setup: ## Run the chainsaw setup
 	make docker-build
-	$(KIND) --name $(KIND_CLUSTER_NAME) load docker-image $(IMG)
+	$(KIND) --name $(KIND_CLUSTER_NAME) load docker-image $(IMG) || \
+		(echo "Kind load failed, trying alternative method..." && \
+		docker save $(IMG) | docker exec -i $(KIND_CLUSTER_NAME)-control-plane ctr --namespace=k8s.io image import -)
 	KUBECONFIG=$(KIND_KUBECONFIG) make helm-install-depends
 	KUBECONFIG=$(KIND_KUBECONFIG) make deploy
 

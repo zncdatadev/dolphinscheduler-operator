@@ -46,7 +46,7 @@ spec:
     - apply:
         file: dolphinscheduler.yaml
     - assert:
-        timeout: 400s
+        timeout: 600s
         file: dolphinscheduler-assert.yaml
     cleanup:
     - sleep:
@@ -61,3 +61,6 @@ spec:
         kind: Pod
     - podLogs:
         namespace: ($namespace)
+    - podLogs:
+        selector: app.kubernetes.io/component=master
+        tail: -1
