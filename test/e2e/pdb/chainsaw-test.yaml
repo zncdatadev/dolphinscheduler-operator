@@ -54,7 +54,7 @@ spec:
     - describe:
         apiVersion: v1
         kind: Pod
-        namespace: '*'
+        selector: app.kubernetes.io/instance=test-dolphinscheduler
     - describe:
         apiVersion: apps/v1
         kind: StatefulSet

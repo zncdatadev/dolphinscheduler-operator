@@ -83,7 +83,7 @@ func (a *MasterRoleResourceReconcilerBuilder) ResourceReconcilers(
 			dolphinv1alpha1.MasterActualPortName: dolphinv1alpha1.MasterActualPort,
 		}).
 		WithEnvs(util.SortedMap{
-			"JAVA_OPTS":                                    "-Xms1g -Xmx1g -Xmn512m",
+			"JAVA_OPTS":                                    "-Xms512m -Xmx512m -Xmn256m",
 			"MASTER_DISPATCH_TASK_NUM":                     "3",
 			"MASTER_EXEC_TASK_NUM":                         "20",
 			"MASTER_EXEC_THREADS":                          "100",
