@@ -44,5 +44,7 @@ spec:
     - describe:
         apiVersion: v1
         kind: Pod
+        selector: app.kubernetes.io/instance=test-dolphinscheduler
     - podLogs:
         namespace: ($namespace)
+        selector: app.kubernetes.io/instance=test-dolphinscheduler
