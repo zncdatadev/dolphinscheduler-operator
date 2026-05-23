@@ -39,6 +39,9 @@ cover.out
 .codiumai.toml
 .omc
 
+# ai codin
+.omc
+
 docker-digests.json
 
 # helm charts
