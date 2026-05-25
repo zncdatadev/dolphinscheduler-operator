@@ -41,10 +41,16 @@ func NewClusterReconciler(
 }
 
 func (r *Reconciler) GetImage() *util.Image {
+	// 优先使用 CR spec 中的 productVersion，未设置时回退到默认版本
+	productVersion := dolphinv1alpha1.DefaultProductVersion
+	if r.Spec.Image.ProductVersion != "" {
+		productVersion = r.Spec.Image.ProductVersion
+	}
+
 	image := util.NewImage(
 		dolphinv1alpha1.DefaultProductName,
 		version.BuildVersion,
-		dolphinv1alpha1.DefaultProductVersion,
+		productVersion,
 		func(options *util.ImageOptions) {
 			options.Custom = r.Spec.Image.Custom
 			options.Repo = r.Spec.Image.Repo
