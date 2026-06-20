@@ -3,7 +3,7 @@ kind: Configuration
 metadata:
   name: custom-config
 spec:
-  # namespace: chainsaw
+  namespace: kubedoop-operators
   timeouts:
     apply: 300s
     assert: 600s
