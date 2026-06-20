@@ -155,10 +155,13 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 chart: manifests kustomize ## Generate helm chart for the operator.
 	$(KUSTOMIZE) build config/crd > deploy/helm/$(PROJECT_NAME)/crds/crds.yaml
 
-.PHONY: chart-publish ## Publish helm chart for the operator.
-chart-publish: helm chart ## Publish helm chart for the operator.
+.PHONY: helm-chart-package ## Package helm chart for the operator.
+helm-chart-package: helm chart ## Package helm chart for the operator.
 	mkdir -p target/charts
 	$(HELM) package deploy/helm/$(PROJECT_NAME) --version $(VERSION) --app-version $(VERSION) --destination target/charts
+
+.PHONY: chart-publish ## Publish helm chart for the operator.
+chart-publish: helm-chart-package ## Publish helm chart for the operator.
 	$(HELM) push target/charts/$(PROJECT_NAME)-$(VERSION).tgz $(OCI_REGISTRY)
 
 
@@ -346,3 +349,11 @@ chainsaw-test: chainsaw ## Run the chainsaw test
 chainsaw-cleanup: ## Run the chainsaw cleanup
 	KUBECONFIG=$(KIND_KUBECONFIG) make helm-uninstall-depends
 	KUBECONFIG=$(KIND_KUBECONFIG) make undeploy
+
+.PHONY: chart-e2e
+chart-e2e: kind-create chainsaw-setup helm-chart-package ## Run e2e tests with Helm chart deployment
+	$(KIND) --name $(KIND_CLUSTER_NAME) load docker-image $(IMG)
+	$(HELM) upgrade --install --create-namespace --namespace $(PROJECT_NAME) \
+		--kubeconfig $(KIND_KUBECONFIG) --wait $(PROJECT_NAME) \
+		target/charts/$(PROJECT_NAME)-$(VERSION).tgz
+	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config ./test/e2e/.chainsaw.yaml --test-dir ./test/e2e/
