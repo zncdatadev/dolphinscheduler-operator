@@ -37,6 +37,7 @@ jobs:
           # '1.34.3',
           '1.35.0'
         ]
+        product-version: ['3.2.2', '3.3.2']
 
     steps:
       - name: Clone the code
@@ -49,18 +50,19 @@ jobs:
 
       - name: Create KinD cluster
         env:
-          KINDTEST_K8S_VERSION: ${{ matrix.k8s-version }}
-          KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
-        run: make kind-create
+          KIND_K8S_VERSION: ${{ matrix.k8s-version }}
+          CHAINSAW_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
+        run: make setup-chainsaw-cluster
 
       - name: Chainsaw test setup
         env:
-          KINDTEST_K8S_VERSION: ${{ matrix.k8s-version }}
-          KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
-        run: make chainsaw-setup
+          KIND_K8S_VERSION: ${{ matrix.k8s-version }}
+          CHAINSAW_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
+        run: make setup-chainsaw-e2e
 
       - name: Test with Chainsaw
         env:
-          KINDTEST_K8S_VERSION: ${{ matrix.k8s-version }}
-          KIND_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
-        run: make chainsaw-test
+          KIND_K8S_VERSION: ${{ matrix.k8s-version }}
+          CHAINSAW_KUBECONFIG: kind-kubeconfig-${{ matrix.k8s-version }}
+          PRODUCT_VERSION: ${{ matrix.product-version }}
+        run: make chainsaw-e2e
