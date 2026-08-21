@@ -11,6 +11,8 @@ kind: DolphinschedulerCluster
 metadata:
   name: test-dolphinscheduler
 spec:
+  image:
+    productVersion: ($values.product_version)
   clusterConfig:
     zookeeperConfigMapName: test-znode
     authentication:
