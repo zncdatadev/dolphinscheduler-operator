@@ -13,6 +13,9 @@ import (
 const (
 	invokePrepareSignalHandlers = "prepare_signal_handlers"
 	invokeWaitForTermination    = "wait_for_termination $!"
+	// roleCommandArgZero occupies bash -c's mandatory $0 slot, leaving every user
+	// cliOverrides element available through "$@".
+	roleCommandArgZero = "dolphinscheduler"
 )
 
 const commonBashTrapFunctions = `prepare_signal_handlers()
@@ -45,9 +48,11 @@ wait_for_termination()
 }`
 
 // containerCommand is the shell every DolphinScheduler container (and the DB-init Job) runs
-// its script under. The role containers carry the start script as the command's last element
-// (RoleDeclaration.Command), so args stay purely the user's cliOverrides.
-var containerCommand = []string{"/bin/bash", "-x", "-euo", "pipefail", "-c"}
+// its script under. Role declarations append the script and a stable bash $0 placeholder;
+// args stay purely the user's cliOverrides and the script forwards them through "$@".
+// Do not enable xtrace here. The API role's script reads LDAP credentials into exported
+// variables; bash -x would print those expanded values into the container log.
+var containerCommand = []string{"/bin/bash", "-euo", "pipefail", "-c"}
 
 // roleServerName returns the DolphinScheduler server directory/binary segment for a role:
 // master-server, worker-server, api-server, alert-server. Note "alert-server" (the product
@@ -62,7 +67,7 @@ func mainContainerScript(roleName string) string {
 	return strings.Join([]string{
 		commonBashTrapFunctions,
 		invokePrepareSignalHandlers,
-		fmt.Sprintf("%s/bin/start.sh &", roleServerName(roleName)),
+		fmt.Sprintf(`%s/bin/start.sh "$@" &`, roleServerName(roleName)),
 		invokeWaitForTermination,
 	}, "\n")
 }

@@ -16,10 +16,11 @@ spec:
     - name: metrics
       port: 5679
       protocol: TCP
-      targetPort: metrics
+      targetPort: 5679
   selector:
-    app.kubernetes.io/instance: test-dolphinscheduler-observability
-    app.kubernetes.io/component: master
+    dolphinscheduler.kubedoop.dev/cluster: test-dolphinscheduler-observability
+    dolphinscheduler.kubedoop.dev/role: master
+    dolphinscheduler.kubedoop.dev/role-group: default
 ---
 # Worker metrics service
 apiVersion: v1
@@ -39,10 +40,35 @@ spec:
     - name: metrics
       port: 1235
       protocol: TCP
-      targetPort: metrics
+      targetPort: 1235
   selector:
-    app.kubernetes.io/instance: test-dolphinscheduler-observability
-    app.kubernetes.io/component: worker
+    dolphinscheduler.kubedoop.dev/cluster: test-dolphinscheduler-observability
+    dolphinscheduler.kubedoop.dev/role: worker
+    dolphinscheduler.kubedoop.dev/role-group: default
+---
+# API metrics service
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-dolphinscheduler-observability-api-default-metrics
+  labels:
+    prometheus.io/scrape: "true"
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "12345"
+    prometheus.io/scheme: "http"
+    prometheus.io/path: "/actuator/prometheus"
+spec:
+  clusterIP: None
+  ports:
+    - name: metrics
+      port: 12345
+      protocol: TCP
+      targetPort: 12345
+  selector:
+    dolphinscheduler.kubedoop.dev/cluster: test-dolphinscheduler-observability
+    dolphinscheduler.kubedoop.dev/role: api
+    dolphinscheduler.kubedoop.dev/role-group: default
 ---
 # Alerter metrics service
 apiVersion: v1
@@ -62,10 +88,11 @@ spec:
     - name: metrics
       port: 50053
       protocol: TCP
-      targetPort: metrics
+      targetPort: 50053
   selector:
-    app.kubernetes.io/instance: test-dolphinscheduler-observability
-    app.kubernetes.io/component: alert
+    dolphinscheduler.kubedoop.dev/cluster: test-dolphinscheduler-observability
+    dolphinscheduler.kubedoop.dev/role: alert
+    dolphinscheduler.kubedoop.dev/role-group: default
 ---
 # Master StatefulSet
 apiVersion: apps/v1

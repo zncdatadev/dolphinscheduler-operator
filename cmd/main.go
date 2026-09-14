@@ -30,6 +30,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -199,6 +200,14 @@ func main() {
 							Name: cc.Database.CredentialsSecret,
 						})
 					}
+					for _, authentication := range cc.Authentication {
+						if authentication.Oidc != nil && authentication.Oidc.Secret != "" {
+							deps = append(deps, reconciler.Dependency{
+								Kind: reconciler.DependencySecret,
+								Name: authentication.Oidc.Secret,
+							})
+						}
+					}
 				}
 				return deps
 			},
@@ -215,7 +224,9 @@ func main() {
 		// Role/RoleBinding watches itself when WorkloadRBACRules is set.
 		ExtraOwns: []ctrlclient.Object{
 			&batchv1.Job{},
+			&corev1.Secret{},
 		},
+		Watches: controller.ReferenceWatches(mgr.GetClient()),
 	}); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DolphinschedulerCluster")
 		os.Exit(1)

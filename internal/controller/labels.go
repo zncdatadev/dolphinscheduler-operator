@@ -6,9 +6,9 @@ const LabelDomain = "dolphinscheduler.kubedoop.dev"
 
 // legacyManagedBy and legacyName are the app.kubernetes.io/managed-by and app.kubernetes.io/name
 // values the pre-framework operator stamped on every resource (managed-by = the CRD group,
-// name = the lowercase CRD kind). The metrics Service keeps them byte for byte (D6): its shape,
-// including the legacy selector, is pinned by the observability e2e suite and by existing scrape
-// configurations. The RBAC objects, env ConfigMap and DB-init Job keep them too.
+// name = the lowercase CRD kind). The metrics Service keeps these as metadata for existing scrape
+// discovery, but its selector uses the Gen3 product identity labels stamped on the pods. The RBAC
+// objects, env ConfigMap and DB-init Job keep the legacy metadata too.
 const (
 	legacyManagedBy = "dolphinscheduler.kubedoop.dev"
 	legacyName      = "dolphinschedulercluster"

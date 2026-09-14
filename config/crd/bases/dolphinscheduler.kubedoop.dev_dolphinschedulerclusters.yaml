@@ -548,9 +548,21 @@ spec:
                         replicas:
                           default: 1
                           format: int32
+                          minimum: 0
                           type: integer
                       type: object
+                    description: Role-group names become Kubernetes resource-name
+                      and label segments.
+                    maxProperties: 256
+                    minProperties: 1
                     type: object
+                    x-kubernetes-validations:
+                    - message: each role group name must be a lowercase RFC 1123 label
+                        (lowercase alphanumerics and '-', starting and ending with
+                        an alphanumeric, at most 63 characters)
+                      rule: self.all(k, size(k) <= 63 && k.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'))
+                required:
+                - roleGroups
                 type: object
               api:
                 properties:
@@ -1059,9 +1071,21 @@ spec:
                         replicas:
                           default: 1
                           format: int32
+                          minimum: 0
                           type: integer
                       type: object
+                    description: Role-group names become Kubernetes resource-name
+                      and label segments.
+                    maxProperties: 256
+                    minProperties: 1
                     type: object
+                    x-kubernetes-validations:
+                    - message: each role group name must be a lowercase RFC 1123 label
+                        (lowercase alphanumerics and '-', starting and ending with
+                        an alphanumeric, at most 63 characters)
+                      rule: self.all(k, size(k) <= 63 && k.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'))
+                required:
+                - roleGroups
                 type: object
               clusterConfig:
                 properties:
@@ -1069,6 +1093,7 @@ spec:
                     items:
                       properties:
                         authenticationClass:
+                          minLength: 1
                           type: string
                         oidc:
                           properties:
@@ -1077,6 +1102,7 @@ spec:
                                 type: string
                               type: array
                             secret:
+                              minLength: 1
                               type: string
                           required:
                           - secret
@@ -1091,8 +1117,10 @@ spec:
                   database:
                     properties:
                       connectionString:
+                        minLength: 1
                         type: string
                       credentialsSecret:
+                        minLength: 1
                         type: string
                       databaseType:
                         default: h2
@@ -1219,6 +1247,7 @@ spec:
                   vectorAggregatorConfigMapName:
                     type: string
                   zookeeperConfigMapName:
+                    minLength: 1
                     type: string
                 required:
                 - database
@@ -1763,9 +1792,21 @@ spec:
                         replicas:
                           default: 1
                           format: int32
+                          minimum: 0
                           type: integer
                       type: object
+                    description: Role-group names become Kubernetes resource-name
+                      and label segments.
+                    maxProperties: 256
+                    minProperties: 1
                     type: object
+                    x-kubernetes-validations:
+                    - message: each role group name must be a lowercase RFC 1123 label
+                        (lowercase alphanumerics and '-', starting and ending with
+                        an alphanumeric, at most 63 characters)
+                      rule: self.all(k, size(k) <= 63 && k.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'))
+                required:
+                - roleGroups
                 type: object
               worker:
                 properties:
@@ -2274,13 +2315,26 @@ spec:
                         replicas:
                           default: 1
                           format: int32
+                          minimum: 0
                           type: integer
                       type: object
+                    description: Role-group names become Kubernetes resource-name
+                      and label segments.
+                    maxProperties: 256
+                    minProperties: 1
                     type: object
+                    x-kubernetes-validations:
+                    - message: each role group name must be a lowercase RFC 1123 label
+                        (lowercase alphanumerics and '-', starting and ending with
+                        an alphanumeric, at most 63 characters)
+                      rule: self.all(k, size(k) <= 63 && k.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'))
+                required:
+                - roleGroups
                 type: object
             required:
             - alerter
             - api
+            - clusterConfig
             - master
             - worker
             type: object

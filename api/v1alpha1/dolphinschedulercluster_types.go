@@ -203,8 +203,8 @@ type DolphinschedulerClusterSpec struct {
 	// +default:value={"repo": "quay.io/zncdatadev", "pullPolicy": "IfNotPresent"}
 	Image *ImageSpec `json:"image"`
 
-	// +kubebuilder:validation:Optional
-	ClusterConfig *ClusterConfigSpec `json:"clusterConfig,omitempty"`
+	// +kubebuilder:validation:Required
+	ClusterConfig *ClusterConfigSpec `json:"clusterConfig"`
 
 	// +kubebuilder:validation:Optional
 	ClusterOperationSpec *commonsv1alpha1.ClusterOperationSpec `json:"clusterOperation,omitempty"`
@@ -236,6 +236,7 @@ type ClusterConfigSpec struct {
 	VectorAggregatorConfigMapName string `json:"vectorAggregatorConfigMapName,omitempty"`
 
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
 	ZookeeperConfigMapName string `json:"zookeeperConfigMapName,omitempty"`
 
 	// +kubebuilder:validation:Optional
@@ -250,6 +251,7 @@ type ClusterConfigSpec struct {
 
 type DatabaseSpec struct {
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
 	ConnectionString string `json:"connectionString,omitempty"`
 
 	// +kubebuilder:validation:Required
@@ -257,6 +259,7 @@ type DatabaseSpec struct {
 	DatabaseType string `json:"databaseType,omitempty"`
 
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinLength=1
 	CredentialsSecret string `json:"credentialsSecret,omitempty"`
 }
 
@@ -264,7 +267,11 @@ type RoleSpec struct {
 	// +kubebuilder:validation:Optional
 	Config *ConfigSpec `json:"config,omitempty"`
 
-	// +kubebuilder:validation:Optional
+	// Role-group names become Kubernetes resource-name and label segments.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinProperties=1
+	// +kubebuilder:validation:MaxProperties=256
+	// +kubebuilder:validation:XValidation:rule=`self.all(k, size(k) <= 63 && k.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'))`,message=`each role group name must be a lowercase RFC 1123 label (lowercase alphanumerics and '-', starting and ending with an alphanumeric, at most 63 characters)`
 	RoleGroups map[string]RoleGroupSpec `json:"roleGroups,omitempty"`
 
 	// +kubebuilder:validation:Optional
@@ -276,6 +283,7 @@ type RoleSpec struct {
 type RoleGroupSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=1
+	// +kubebuilder:validation:Minimum=0
 	Replicas *int32 `json:"replicas,omitempty"`
 
 	// +kubebuilder:validation:Optional

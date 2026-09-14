@@ -7,6 +7,7 @@ import (
 	"path"
 	"slices"
 	"strconv"
+	"strings"
 
 	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
 	"github.com/zncdatadev/dolphinscheduler-operator/internal/security"
@@ -17,6 +18,7 @@ import (
 	opgoconstant "github.com/zncdatadev/operator-go/pkg/constant"
 	"github.com/zncdatadev/operator-go/pkg/productlogging"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
+	opgos3 "github.com/zncdatadev/operator-go/pkg/s3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -56,6 +58,11 @@ const (
 
 	// curlCommand is the probe binary of the legacy actuator exec probes.
 	curlCommand = "curl"
+
+	// DolphinScheduler 3.2.2's PropertyUtils maps these environment names to the
+	// resource.aws.* properties. They keep credential values out of ConfigMaps.
+	s3AccessKeyEnvName = "RESOURCE_AWS_ACCESS_KEY_ID"
+	s3SecretKeyEnvName = "RESOURCE_AWS_SECRET_ACCESS_KEY"
 )
 
 // DolphinSchedulerRoleGroupHandler builds the resources of a DolphinScheduler role group on top
@@ -158,13 +165,19 @@ func (h *DolphinSchedulerRoleGroupHandler) DeclareRoles(
 		return nil, fmt.Errorf("spec.clusterConfig is required")
 	}
 
+	s3Info, err := resolveS3Bucket(ctx, c, cr)
+	if err != nil {
+		return nil, err
+	}
+	s3ExportScript := s3CredentialsExportScript(s3Info)
+
 	// Authentication (api role only): resolves the AuthenticationClass into container env and,
 	// for LDAP, a credentials-export prologue for the start script. The CSI bind-credentials
 	// volume is resolved again in BuildResources (per role group), where VolumeProviders live.
 	var auth *security.AuthenticationResult
 	if clusterConfig.Authentication != nil {
 		var err error
-		auth, err = security.Authentication(ctx, c, clusterConfig.Authentication)
+		auth, err = security.Authentication(ctx, c, cr.Namespace, clusterConfig.Authentication)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve authentication: %w", err)
 		}
@@ -186,10 +199,14 @@ func (h *DolphinSchedulerRoleGroupHandler) DeclareRoles(
 			return nil, err
 		}
 
-		// Command carries the start script as its last element: the declaration has no Args
-		// slot by design, so args stay purely the user's cliOverrides. The LDAP
+		// Command carries the start script followed by bash's fixed $0 placeholder: the
+		// declaration has no Args slot, so args stay purely the user's cliOverrides and are
+		// forwarded by the script through "$@". The LDAP
 		// credentials-export prologue precedes the single start block (api only).
 		script := mainContainerScript(role)
+		if s3ExportScript != "" {
+			script = s3ExportScript + "\n" + script
+		}
 		if role == dolphinv1alpha1.RoleApi && auth != nil && auth.LdapExportCommand != "" {
 			script = auth.LdapExportCommand + "\n" + script
 		}
@@ -207,6 +224,7 @@ func (h *DolphinSchedulerRoleGroupHandler) DeclareRoles(
 				},
 			},
 		})
+		env = append(env, databaseCredentialEnv(cr)...)
 		if role == dolphinv1alpha1.RoleApi && auth != nil {
 			env = append(env, auth.EnvVars...)
 		}
@@ -216,7 +234,7 @@ func (h *DolphinSchedulerRoleGroupHandler) DeclareRoles(
 			MainContainerName: container,
 			ContainerPorts:    ports,
 			ServicePorts:      servicePortsFor(ports),
-			Command:           append(slices.Clone(containerCommand), script),
+			Command:           append(slices.Clone(containerCommand), script, roleCommandArgZero),
 			Env:               env,
 			ReadinessProbe:    actuatorProbe(metricsPort, "readiness"),
 			LivenessProbe:     actuatorProbe(metricsPort, "liveness"),
@@ -269,11 +287,21 @@ func (h *DolphinSchedulerRoleGroupHandler) BuildResources(
 		return nil, fmt.Errorf("spec.clusterConfig is required")
 	}
 
+	s3Info, err := resolveS3Bucket(ctx, k8sClient, cr)
+	if err != nil {
+		return nil, err
+	}
+	if s3Info != nil {
+		if provisioner := s3Info.CredentialsProvisioner(opgos3.DefaultCredentialsVolumeName); provisioner != nil {
+			buildCtx.VolumeProviders = append(buildCtx.VolumeProviders, provisioner)
+		}
+	}
+
 	// Authentication (api role only): re-resolved here (client reads are cached) for the CSI
 	// bind-credentials volume, which is per role group; env and the script prologue are already
 	// in the declaration from DeclareRoles.
 	if roleName == dolphinv1alpha1.RoleApi && clusterConfig.Authentication != nil {
-		auth, err := security.Authentication(ctx, k8sClient, clusterConfig.Authentication)
+		auth, err := security.Authentication(ctx, k8sClient, cr.Namespace, clusterConfig.Authentication)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve authentication: %w", err)
 		}
@@ -334,9 +362,20 @@ func (h *DolphinSchedulerRoleGroupHandler) BuildResources(
 	}
 	res.ConfigMap.Data[dolphinv1alpha1.DolphinCommonPropertiesName] = commonProperties
 
-	// Metrics Service: byte-exact legacy shape (name, headless ClusterIP, prometheus labels and
-	// annotations, the named-and-dangling targetPort "metrics", and the legacy label selector) —
-	// pinned by the observability e2e suite.
+	// Compute the rollout hash only after all product-specific ConfigMap rendering is complete.
+	// This makes inline configuration changes (including S3 endpoint, region, and bucket) update
+	// the Pod template even though no referenced object's resourceVersion changes.
+	dependencyFingerprint, err := runtimeDependencyFingerprint(ctx, k8sClient, cr, roleName, res.ConfigMap.Data)
+	if err != nil {
+		return nil, err
+	}
+	if res.StatefulSet.Spec.Template.Annotations == nil {
+		res.StatefulSet.Spec.Template.Annotations = map[string]string{}
+	}
+	res.StatefulSet.Spec.Template.Annotations[runtimeDependencyFingerprintAnnotation] = dependencyFingerprint
+
+	// Metrics Service: keep the legacy name, headless ClusterIP, and Prometheus metadata, while
+	// selecting the Gen3 pod labels and targeting the role's actual metrics port.
 	metricsService, err := h.buildMetricsService(buildCtx)
 	if err != nil {
 		return nil, err
@@ -409,25 +448,78 @@ func (h *DolphinSchedulerRoleGroupHandler) renderCommonProperties(
 		maps.Copy(props, buildCtx.MergedConfig.ConfigFiles[dolphinv1alpha1.DolphinCommonPropertiesName])
 	}
 
-	if s3Spec := cr.Spec.ClusterConfig.S3; s3Spec != nil {
-		s3Config, err := util.NewS3ConfigExtractor(k8sClient, s3Spec, cr.Namespace).GetS3Config(ctx)
+	if cr.Spec.ClusterConfig.S3 != nil {
+		s3Info, err := resolveS3Bucket(ctx, k8sClient, cr)
 		if err != nil {
-			return "", fmt.Errorf("failed to get s3 config: %w", err)
+			return "", err
 		}
 		props["resource.storage.type"] = "S3"
-		props["resource.aws.access.key.id"] = s3Config.AccessKeyID
-		// Region is never populated by the extractor; the empty value is kept for parity with
-		// the legacy rendering (known defect, tracked separately).
-		props["resource.aws.region"] = s3Config.Region
-		props["resource.aws.s3.bucket.name"] = s3Config.BucketName
-		props["resource.aws.s3.endpoint"] = s3Config.Endpoint
-		props["resource.aws.secret.access.key"] = s3Config.SecretAccessKey
+		props["resource.aws.region"] = s3Info.Region
+		props["resource.aws.s3.bucket.name"] = s3Info.BucketName
+		props["resource.aws.s3.endpoint"] = s3Info.Endpoint.String()
 	}
 
 	return util.ToProperties(props), nil
 }
 
-// buildMetricsService assembles the metrics Service slot in the exact legacy shape.
+func resolveS3Bucket(
+	ctx context.Context,
+	k8sClient ctrlclient.Client,
+	cr *dolphinv1alpha1.DolphinschedulerCluster,
+) (*opgos3.BucketInfo, error) {
+	if cr.Spec.ClusterConfig == nil || cr.Spec.ClusterConfig.S3 == nil {
+		return nil, nil
+	}
+	info, err := opgos3.ResolveBucket(ctx, k8sClient, cr.Namespace, cr.Spec.ClusterConfig.S3, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve S3 bucket: %w", err)
+	}
+	if !info.PathStyle {
+		return nil, fmt.Errorf("S3 pathStyle must be true because DolphinScheduler 3.2.2 cannot honor virtual-host addressing for a configured endpoint")
+	}
+	if info.TLS != nil && info.TLS.Verification != nil {
+		verification := info.TLS.Verification
+		if verification.None != nil {
+			return nil, fmt.Errorf("S3 TLS verification mode none is not supported by DolphinScheduler 3.2.2")
+		}
+		if verification.Server != nil && verification.Server.CACert != nil &&
+			verification.Server.CACert.SecretClass != "" {
+			return nil, fmt.Errorf("S3 TLS custom CA SecretClass is not supported until JVM trust material can be provisioned")
+		}
+	}
+	return info, nil
+}
+
+// s3CredentialsExportScript bridges the framework's SecretClass CSI credential files to the
+// environment keys DolphinScheduler 3.2.2's PropertyUtils uses for resource.aws.*. The values
+// exist only inside the container process; neither the controller nor a ConfigMap sees them.
+func s3CredentialsExportScript(info *opgos3.BucketInfo) string {
+	if info == nil || info.Credentials == nil {
+		return ""
+	}
+	return s3CredentialsExportScriptForMount(
+		opgos3.CredentialsMountPath(opgos3.DefaultCredentialsVolumeName))
+}
+
+func s3CredentialsExportScriptForMount(mountPath string) string {
+	accessKeyFile := path.Join(mountPath, opgos3.AccessKeyFile)
+	secretKeyFile := path.Join(mountPath, opgos3.SecretKeyFile)
+	// TODO(operator-go): replace this local fragment once CredentialsExportScript propagates
+	// credential-file read failures and rejects empty values. Its current "export VAR=$(cat ...)"
+	// shape masks cat's status, so set -e cannot stop an unsafe ambient-credential fallback.
+	return strings.Join([]string{
+		fmt.Sprintf(`AWS_ACCESS_KEY_ID="$(cat "%s")"`, accessKeyFile),
+		`: "${AWS_ACCESS_KEY_ID:?S3 access key file is empty}"`,
+		fmt.Sprintf(`AWS_SECRET_ACCESS_KEY="$(cat "%s")"`, secretKeyFile),
+		`: "${AWS_SECRET_ACCESS_KEY:?S3 secret key file is empty}"`,
+		`export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY`,
+		`export ` + s3AccessKeyEnvName + `="$AWS_ACCESS_KEY_ID"`,
+		`export ` + s3SecretKeyEnvName + `="$AWS_SECRET_ACCESS_KEY"`,
+	}, "\n")
+}
+
+// buildMetricsService assembles the metrics Service slot. Its selector must come from the base
+// handler: those exact labels are stamped on the Gen3 pod template.
 func (h *DolphinSchedulerRoleGroupHandler) buildMetricsService(buildCtx *reconciler.RoleGroupBuildContext) (*corev1.Service, error) {
 	metricsPort, err := metricsPortForRole(buildCtx.RoleName)
 	if err != nil {
@@ -456,15 +548,13 @@ func (h *DolphinSchedulerRoleGroupHandler) buildMetricsService(buildCtx *reconci
 			ClusterIP: corev1.ClusterIPNone,
 			Ports: []corev1.ServicePort{
 				{
-					Name:     dolphinv1alpha1.MetricsPortName,
-					Port:     metricsPort,
-					Protocol: corev1.ProtocolTCP,
-					// The named targetPort matches no container port (none is named "metrics");
-					// the dangling reference is deliberate — the e2e suite pins the full shape.
-					TargetPort: intstr.FromString(dolphinv1alpha1.MetricsPortName),
+					Name:       dolphinv1alpha1.MetricsPortName,
+					Port:       metricsPort,
+					Protocol:   corev1.ProtocolTCP,
+					TargetPort: intstr.FromInt32(metricsPort),
 				},
 			},
-			Selector: legacyRoleGroupLabels(buildCtx.ClusterName, buildCtx.RoleName, buildCtx.RoleGroupName),
+			Selector: h.SelectorLabels(buildCtx),
 		},
 	}, nil
 }

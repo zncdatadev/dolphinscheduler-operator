@@ -25,6 +25,9 @@ type LDAPAuthenticationConfigGenerator struct {
 
 // Generate implements AuthenticationConfigGenerator.
 func (l *LDAPAuthenticationConfigGenerator) Generate() (map[string]interface{}, error) {
+	if l.TLS != nil {
+		return nil, fmt.Errorf("LDAP TLS is not supported until its verification material can be provisioned")
+	}
 
 	uidAttr := "uid"
 	mailAttr := "mail"
@@ -37,7 +40,11 @@ func (l *LDAPAuthenticationConfigGenerator) Generate() (map[string]interface{}, 
 		}
 	}
 
-	ldapUrls := fmt.Sprintf("ldap://%s:%d", l.Hostname, l.Port)
+	port := l.Port
+	if port == 0 {
+		port = 389
+	}
+	ldapUrls := fmt.Sprintf("ldap://%s:%d", l.Hostname, port)
 	envKeyPrefix := "SECURITY_AUTHENTICATION_LDAP_"
 	evns := map[string]interface{}{
 		SecurityAuthenticationType: string(LDAP),
@@ -49,12 +56,6 @@ func (l *LDAPAuthenticationConfigGenerator) Generate() (map[string]interface{}, 
 		envKeyPrefix + "USER_NOT-EXIST-ACTION":   "CREATE",
 	}
 
-	if l.TLS != nil {
-		// WIP: support TLS
-		evns[envKeyPrefix+"SSL_ENABLE"] = "true"
-		evns[envKeyPrefix+"SSL_TRUST_STORE"] = path.Join(opgoconstant.KubedoopTlsDir, "truststore.p12")
-		evns[envKeyPrefix+"SSL_TRUST_STORE_PASSWORD"] = ""
-	}
 	return evns, nil
 }
 
@@ -75,14 +76,24 @@ const (
 )
 
 func ExtractLdapCredintialsAndExportCommand() string {
+	return ldapCredentialsExportCommand(
+		path.Join(opgoconstant.KubedoopSecretDir, dolphinv1alpha1.LdapBindCredintialsVolumeName))
+}
+
+func ldapCredentialsExportCommand(credentialsMountPath string) string {
 	// 1. Get ldap credentials from secret mount path
-	// 2. Export ldap credentials to env
-	userCredentialsSecret := path.Join(opgoconstant.KubedoopSecretDir, dolphinv1alpha1.LdapBindCredintialsVolumeName, LdapSecretUserKey)
-	passCredentialsSecret := path.Join(opgoconstant.KubedoopSecretDir, dolphinv1alpha1.LdapBindCredintialsVolumeName, LdapSecretPassKey)
-	cmd := fmt.Sprintf(`export SECURITY_AUTHENTICATION_LDAP_USERNAME="$(cat %s)";
-export SECURITY_AUTHENTICATION_LDAP_PASSWORD="$(cat %s)";
-export SECURITY_AUTHENTICATION_LDAP_USER_ADMIN="$(cat %s | grep -oP 'uid=\K[^,]+')";
-echo "show ldap useranme and admin user: ldap-username: $SECURITY_AUTHENTICATION_LDAP_USERNAME, ldap-user-admin: $SECURITY_AUTHENTICATION_LDAP_USER_ADMIN "`, userCredentialsSecret, passCredentialsSecret, userCredentialsSecret)
+	// 2. Reject unreadable or empty values before export. An assignment-only command preserves
+	//    the command substitution's exit status; "export VAR=$(cat ...)" would mask a cat error.
+	// 3. Export ldap credentials to env
+	userCredentialsSecret := path.Join(credentialsMountPath, LdapSecretUserKey)
+	passCredentialsSecret := path.Join(credentialsMountPath, LdapSecretPassKey)
+	cmd := fmt.Sprintf(`SECURITY_AUTHENTICATION_LDAP_USERNAME="$(cat "%s")"
+: "${SECURITY_AUTHENTICATION_LDAP_USERNAME:?LDAP bind username file is empty}"
+SECURITY_AUTHENTICATION_LDAP_PASSWORD="$(cat "%s")"
+: "${SECURITY_AUTHENTICATION_LDAP_PASSWORD:?LDAP bind password file is empty}"
+SECURITY_AUTHENTICATION_LDAP_USER_ADMIN="$(sed -n 's/^[^=]*=\([^,]*\).*/\1/p' "%s")"
+: "${SECURITY_AUTHENTICATION_LDAP_USER_ADMIN:?LDAP bind username has no RDN value}"
+export SECURITY_AUTHENTICATION_LDAP_USERNAME SECURITY_AUTHENTICATION_LDAP_PASSWORD SECURITY_AUTHENTICATION_LDAP_USER_ADMIN`, userCredentialsSecret, passCredentialsSecret, userCredentialsSecret)
 	return cmd
 }
 

@@ -9,12 +9,18 @@ import (
 	. "github.com/onsi/gomega"
 
 	dolphinv1alpha1 "github.com/zncdatadev/dolphinscheduler-operator/api/v1alpha1"
+	"github.com/zncdatadev/dolphinscheduler-operator/internal/security"
+	"github.com/zncdatadev/dolphinscheduler-operator/pkg/util"
 	authv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/authentication/v1alpha1"
 	commonsv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
+	s3v1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/s3/v1alpha1"
 	"github.com/zncdatadev/operator-go/pkg/config"
 	opgoconstant "github.com/zncdatadev/operator-go/pkg/constant"
 	"github.com/zncdatadev/operator-go/pkg/reconciler"
+	opgos3 "github.com/zncdatadev/operator-go/pkg/s3"
+	opgosecurity "github.com/zncdatadev/operator-go/pkg/security"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -25,13 +31,27 @@ import (
 )
 
 const (
-	testClusterName = "test-dolphinscheduler"
-	testNamespace   = "default"
+	testClusterName               = "test-dolphinscheduler"
+	testNamespace                 = "default"
+	testDatabaseCredentialsSecret = "postgresql-credentials"
+	testS3BucketName              = "workflows"
+	testS3ConnectionName          = "object-store"
+	testS3Host                    = "s3.example.com"
+	testS3DefaultRegion           = "us-east-1"
+	testS3AlternateRegion         = "eu-west-1"
 )
 
-// expectedShell pins the container shell invocation the start script runs under (the first five
-// elements of every role's declared Command; the script is the sixth).
-var expectedShell = []string{"/bin/bash", "-x", "-euo", "pipefail", "-c"}
+// expectedShell pins the container shell invocation the start script runs under. Xtrace must
+// stay disabled because the API role reads LDAP credentials in that script.
+var expectedShell = []string{"/bin/bash", "-euo", "pipefail", "-c"}
+
+func roleScript(command []string) string {
+	GinkgoHelper()
+	Expect(command).To(HaveLen(len(expectedShell) + 2))
+	Expect(command[:len(expectedShell)]).To(Equal(expectedShell))
+	Expect(command[len(command)-1]).To(Equal(roleCommandArgZero))
+	return command[len(expectedShell)]
+}
 
 func newTestCluster() *dolphinv1alpha1.DolphinschedulerCluster {
 	pullPolicy := corev1.PullIfNotPresent
@@ -57,7 +77,7 @@ func newTestCluster() *dolphinv1alpha1.DolphinschedulerCluster {
 				Database: &dolphinv1alpha1.DatabaseSpec{
 					ConnectionString:  "jdbc:postgresql://postgresql:5432/dolphinscheduler",
 					DatabaseType:      "postgresql",
-					CredentialsSecret: "postgresql-credentials",
+					CredentialsSecret: testDatabaseCredentialsSecret,
 				},
 			},
 			Master:  roleSpec(),
@@ -78,11 +98,71 @@ func declareRole(
 	roleName string,
 ) reconciler.RoleDeclaration {
 	GinkgoHelper()
+	seedRuntimeDependencies(ctx, c, cr)
 	catalog, err := handler.DeclareRoles(ctx, c, cr)
 	Expect(err).NotTo(HaveOccurred())
 	decl, ok := catalog[roleName]
 	Expect(ok).To(BeTrue(), "role %s missing from the catalog", roleName)
 	return decl
+}
+
+func seedRuntimeDependencies(
+	ctx context.Context,
+	c ctrlclient.Client,
+	cr *dolphinv1alpha1.DolphinschedulerCluster,
+) {
+	GinkgoHelper()
+	objects := []ctrlclient.Object{
+		&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+			Name: envsConfigMapName(cr.Name), Namespace: cr.Namespace,
+		}},
+		&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+			Name: cr.Spec.ClusterConfig.ZookeeperConfigMapName, Namespace: cr.Namespace,
+		}},
+	}
+	if cr.Spec.ClusterConfig.Database != nil {
+		objects = append(objects, &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: databaseCredentialsSecretName(cr), Namespace: cr.Namespace},
+			Data: map[string][]byte{
+				util.ConnectionStringAuthUser: []byte("dolphinscheduler"),
+				util.ConnectionStringAuthPass: []byte("database-password"),
+			},
+		})
+	}
+	for _, object := range objects {
+		err := c.Create(ctx, object)
+		Expect(err == nil || apierrors.IsAlreadyExists(err)).To(BeTrue(), "seed %T %s: %v", object, object.GetName(), err)
+	}
+}
+
+type resourceVersionClearingClient struct {
+	ctrlclient.Client
+	kind string
+	name string
+}
+
+func (c resourceVersionClearingClient) Get(
+	ctx context.Context,
+	key ctrlclient.ObjectKey,
+	object ctrlclient.Object,
+	options ...ctrlclient.GetOption,
+) error {
+	if err := c.Client.Get(ctx, key, object, options...); err != nil {
+		return err
+	}
+	kind := ""
+	switch object.(type) {
+	case *corev1.ConfigMap:
+		kind = runtimeDependencyKindConfigMap
+	case *corev1.Secret:
+		kind = runtimeDependencyKindSecret
+	case *s3v1alpha1.S3Connection:
+		kind = runtimeDependencyKindS3Connection
+	}
+	if kind == c.kind && key.Name == c.name {
+		object.SetResourceVersion("")
+	}
+	return nil
 }
 
 // newBuildContext assembles a RoleGroupBuildContext the way GenericReconciler does: the
@@ -146,6 +226,7 @@ func newFakeClient(objs ...ctrlclient.Object) ctrlclient.Client {
 	Expect(clientgoscheme.AddToScheme(scheme)).To(Succeed())
 	Expect(dolphinv1alpha1.AddToScheme(scheme)).To(Succeed())
 	Expect(authv1alpha1.AddToScheme(scheme)).To(Succeed())
+	Expect(s3v1alpha1.AddToScheme(scheme)).To(Succeed())
 	return fakeclient.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
 }
 
@@ -178,9 +259,7 @@ var _ = Describe("DolphinSchedulerRoleGroupHandler", func() {
 				Expect(decl.Validate(role)).To(Succeed(), "role %s", role)
 				Expect(decl.MainContainerName).To(Equal(mainContainerNames[role]))
 				// The start script is the command's last element; args stay the user's.
-				Expect(decl.Command).To(HaveLen(6), "role %s", role)
-				Expect(decl.Command[:5]).To(Equal(expectedShell))
-				Expect(decl.Command[5]).To(ContainSubstring("bin/start.sh &"), "role %s", role)
+				Expect(roleScript(decl.Command)).To(ContainSubstring(`bin/start.sh "$@" &`), "role %s", role)
 				Expect(decl.LogVolumeSize).To(Equal(legacyLogVolumeSize))
 				Expect(decl.ConfigDefaults).NotTo(BeNil())
 				Expect(decl.ConfigDefaults.GracefulShutdownTimeout).To(HaveValue(Equal("120s")))
@@ -242,8 +321,193 @@ var _ = Describe("DolphinSchedulerRoleGroupHandler", func() {
 		})
 	})
 
+	Describe("runtime dependency fingerprint", func() {
+		It("rolls every role when the database credentials Secret version changes", func() {
+			for _, role := range []string{
+				dolphinv1alpha1.RoleMaster,
+				dolphinv1alpha1.RoleWorker,
+				dolphinv1alpha1.RoleApi,
+				dolphinv1alpha1.RoleAlert,
+			} {
+				c := newFakeClient()
+				decl := declareRole(ctx, handler, c, cr, role)
+				res, err := handler.BuildResources(ctx, c, cr, newBuildContext(cr, role, decl))
+				Expect(err).NotTo(HaveOccurred(), "role %s", role)
+				before := res.StatefulSet.Spec.Template.Annotations[runtimeDependencyFingerprintAnnotation]
+				Expect(before).To(HaveLen(64))
+				Expect(before).NotTo(ContainSubstring("database-password"))
+
+				secret := &corev1.Secret{}
+				key := ctrlclient.ObjectKey{Namespace: cr.Namespace, Name: databaseCredentialsSecretName(cr)}
+				Expect(c.Get(ctx, key, secret)).To(Succeed())
+				secret.Data[util.ConnectionStringAuthPass] = []byte("rotated-database-password")
+				Expect(c.Update(ctx, secret)).To(Succeed())
+
+				decl = declareRole(ctx, handler, c, cr, role)
+				res, err = handler.BuildResources(ctx, c, cr, newBuildContext(cr, role, decl))
+				Expect(err).NotTo(HaveOccurred(), "role %s", role)
+				after := res.StatefulSet.Spec.Template.Annotations[runtimeDependencyFingerprintAnnotation]
+				Expect(after).NotTo(Equal(before), "role %s", role)
+				Expect(after).NotTo(ContainSubstring("rotated-database-password"))
+			}
+		})
+
+		It("rolls Pods when either consumed ConfigMap version changes", func() {
+			c := newFakeClient()
+			role := dolphinv1alpha1.RoleMaster
+			decl := declareRole(ctx, handler, c, cr, role)
+			res, err := handler.BuildResources(ctx, c, cr, newBuildContext(cr, role, decl))
+			Expect(err).NotTo(HaveOccurred())
+			previous := res.StatefulSet.Spec.Template.Annotations[runtimeDependencyFingerprintAnnotation]
+
+			for _, name := range []string{envsConfigMapName(cr.Name), cr.Spec.ClusterConfig.ZookeeperConfigMapName} {
+				configMap := &corev1.ConfigMap{}
+				key := ctrlclient.ObjectKey{Namespace: cr.Namespace, Name: name}
+				Expect(c.Get(ctx, key, configMap)).To(Succeed())
+				configMap.Data = map[string]string{"revision": configMap.ResourceVersion}
+				Expect(c.Update(ctx, configMap)).To(Succeed())
+
+				decl = declareRole(ctx, handler, c, cr, role)
+				res, err = handler.BuildResources(ctx, c, cr, newBuildContext(cr, role, decl))
+				Expect(err).NotTo(HaveOccurred())
+				fingerprint := res.StatefulSet.Spec.Template.Annotations[runtimeDependencyFingerprintAnnotation]
+				Expect(fingerprint).NotTo(Equal(previous), "ConfigMap %s", name)
+				previous = fingerprint
+			}
+		})
+
+		It("rolls Pods when inline S3 configuration changes", func() {
+			cr.Spec.ClusterConfig.S3 = &s3v1alpha1.S3BucketSpec{
+				BucketName: testS3BucketName,
+				Connection: &s3v1alpha1.S3BucketConnectionSpec{Inline: &s3v1alpha1.S3ConnectionSpec{
+					Host: "minio", Port: 9000, Region: testS3DefaultRegion, PathStyle: true,
+				}},
+			}
+			c := newFakeClient()
+			role := dolphinv1alpha1.RoleMaster
+			decl := declareRole(ctx, handler, c, cr, role)
+			res, err := handler.BuildResources(ctx, c, cr, newBuildContext(cr, role, decl))
+			Expect(err).NotTo(HaveOccurred())
+			before := res.StatefulSet.Spec.Template.Annotations[runtimeDependencyFingerprintAnnotation]
+
+			cr.Spec.ClusterConfig.S3.Connection.Inline.Region = testS3AlternateRegion
+			decl = declareRole(ctx, handler, c, cr, role)
+			res, err = handler.BuildResources(ctx, c, cr, newBuildContext(cr, role, decl))
+			Expect(err).NotTo(HaveOccurred())
+			after := res.StatefulSet.Spec.Template.Annotations[runtimeDependencyFingerprintAnnotation]
+			Expect(after).NotTo(Equal(before))
+			Expect(res.ConfigMap.Data[dolphinv1alpha1.DolphinCommonPropertiesName]).To(
+				ContainSubstring("resource.aws.region=" + testS3AlternateRegion + "\n"))
+		})
+
+		It("rolls Pods when a referenced S3Connection version changes", func() {
+			cr.Spec.ClusterConfig.S3 = &s3v1alpha1.S3BucketSpec{
+				BucketName: testS3BucketName,
+				Connection: &s3v1alpha1.S3BucketConnectionSpec{Reference: testS3ConnectionName},
+			}
+			connection := &s3v1alpha1.S3Connection{
+				ObjectMeta: metav1.ObjectMeta{Name: testS3ConnectionName, Namespace: testNamespace},
+				Spec: s3v1alpha1.S3ConnectionSpec{
+					Host: testS3Host, Port: 443, Region: testS3DefaultRegion, PathStyle: true, Tls: &s3v1alpha1.Tls{},
+				},
+			}
+			c := newFakeClient(connection)
+			role := dolphinv1alpha1.RoleWorker
+			decl := declareRole(ctx, handler, c, cr, role)
+			res, err := handler.BuildResources(ctx, c, cr, newBuildContext(cr, role, decl))
+			Expect(err).NotTo(HaveOccurred())
+			before := res.StatefulSet.Spec.Template.Annotations[runtimeDependencyFingerprintAnnotation]
+
+			stored := &s3v1alpha1.S3Connection{}
+			Expect(c.Get(ctx, ctrlclient.ObjectKeyFromObject(connection), stored)).To(Succeed())
+			stored.Spec.Region = testS3AlternateRegion
+			Expect(c.Update(ctx, stored)).To(Succeed())
+			decl = declareRole(ctx, handler, c, cr, role)
+			res, err = handler.BuildResources(ctx, c, cr, newBuildContext(cr, role, decl))
+			Expect(err).NotTo(HaveOccurred())
+			after := res.StatefulSet.Spec.Template.Annotations[runtimeDependencyFingerprintAnnotation]
+			Expect(after).NotTo(Equal(before))
+			Expect(after).NotTo(ContainSubstring(stored.ResourceVersion))
+		})
+
+		It("includes OIDC credential Secrets only for the api role", func() {
+			authClass := &authv1alpha1.AuthenticationClass{
+				ObjectMeta: metav1.ObjectMeta{Name: string(security.Keycloak)},
+				Spec: authv1alpha1.AuthenticationClassSpec{AuthenticationProvider: &authv1alpha1.AuthenticationProvider{
+					OIDC: &authv1alpha1.OIDCProvider{
+						Hostname: "keycloak.example.com", PrincipalClaim: "preferred_username", ProviderHint: string(security.Keycloak),
+					},
+				}},
+			}
+			oidcSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "oidc-credentials", Namespace: cr.Namespace},
+				Data: map[string][]byte{
+					security.OidcClientIdKey: []byte("client"),
+					security.OidcSecretKey:   []byte("credential-value-must-not-be-rendered"),
+				},
+			}
+			cr.Spec.ClusterConfig.Authentication = []dolphinv1alpha1.AuthenticationSpec{{
+				AuthenticationClass: string(security.Keycloak),
+				Oidc:                &dolphinv1alpha1.OidcCredentialSecretSpec{Secret: oidcSecret.Name},
+			}}
+			c := newFakeClient(authClass, oidcSecret)
+
+			fingerprints := map[string]string{}
+			for _, role := range []string{dolphinv1alpha1.RoleMaster, dolphinv1alpha1.RoleApi} {
+				decl := declareRole(ctx, handler, c, cr, role)
+				res, err := handler.BuildResources(ctx, c, cr, newBuildContext(cr, role, decl))
+				Expect(err).NotTo(HaveOccurred())
+				fingerprints[role] = res.StatefulSet.Spec.Template.Annotations[runtimeDependencyFingerprintAnnotation]
+				Expect(fingerprints[role]).NotTo(ContainSubstring("credential-value-must-not-be-rendered"))
+			}
+
+			stored := &corev1.Secret{}
+			Expect(c.Get(ctx, ctrlclient.ObjectKeyFromObject(oidcSecret), stored)).To(Succeed())
+			stored.Data[security.OidcSecretKey] = []byte("rotated-oidc-secret")
+			Expect(c.Update(ctx, stored)).To(Succeed())
+
+			for _, role := range []string{dolphinv1alpha1.RoleMaster, dolphinv1alpha1.RoleApi} {
+				decl := declareRole(ctx, handler, c, cr, role)
+				res, err := handler.BuildResources(ctx, c, cr, newBuildContext(cr, role, decl))
+				Expect(err).NotTo(HaveOccurred())
+				updated := res.StatefulSet.Spec.Template.Annotations[runtimeDependencyFingerprintAnnotation]
+				if role == dolphinv1alpha1.RoleApi {
+					Expect(updated).NotTo(Equal(fingerprints[role]))
+				} else {
+					Expect(updated).To(Equal(fingerprints[role]))
+				}
+			}
+		})
+
+		It("fails clearly when a runtime dependency is missing", func() {
+			c := newFakeClient()
+			role := dolphinv1alpha1.RoleMaster
+			decl := declareRole(ctx, handler, c, cr, role)
+			buildCtx := newBuildContext(cr, role, decl)
+			missing := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+				Name: cr.Spec.ClusterConfig.ZookeeperConfigMapName, Namespace: cr.Namespace,
+			}}
+			Expect(c.Delete(ctx, missing)).To(Succeed())
+
+			_, err := handler.BuildResources(ctx, c, cr, buildCtx)
+			Expect(err).To(MatchError(ContainSubstring("failed to resolve runtime ConfigMap dependency default/test-znode")))
+		})
+
+		It("rejects a dependency without an API resourceVersion", func() {
+			baseClient := newFakeClient()
+			role := dolphinv1alpha1.RoleMaster
+			decl := declareRole(ctx, handler, baseClient, cr, role)
+			client := resourceVersionClearingClient{
+				Client: baseClient, kind: runtimeDependencyKindConfigMap, name: envsConfigMapName(cr.Name),
+			}
+
+			_, err := handler.BuildResources(ctx, client, cr, newBuildContext(cr, role, decl))
+			Expect(err).To(MatchError(ContainSubstring("runtime ConfigMap dependency default/test-dolphinscheduler-envs has no resourceVersion")))
+		})
+	})
+
 	Describe("metrics service", func() {
-		It("renders the exact legacy shape", func() {
+		It("selects the Gen3 pods and targets the role's metrics port", func() {
 			c := newFakeClient()
 			decl := declareRole(ctx, handler, c, cr, dolphinv1alpha1.RoleMaster)
 			buildCtx := newBuildContext(cr, dolphinv1alpha1.RoleMaster, decl)
@@ -259,7 +523,7 @@ var _ = Describe("DolphinSchedulerRoleGroupHandler", func() {
 				Name:       "metrics",
 				Port:       5679,
 				Protocol:   corev1.ProtocolTCP,
-				TargetPort: intstr.FromString("metrics"),
+				TargetPort: intstr.FromInt(5679),
 			}))
 			Expect(svc.Labels).To(HaveKeyWithValue("prometheus.io/scrape", defaultEnabled))
 			Expect(svc.Annotations).To(Equal(map[string]string{
@@ -268,15 +532,14 @@ var _ = Describe("DolphinSchedulerRoleGroupHandler", func() {
 				"prometheus.io/port":   "5679",
 				"prometheus.io/scheme": "http",
 			}))
-			// The selector keeps the full legacy label set (e2e asserts the instance+component
-			// subset).
 			Expect(svc.Spec.Selector).To(Equal(map[string]string{
-				labelInstanceKey:  testClusterName,
-				labelNameKey:      "dolphinschedulercluster",
-				labelManagedByKey: "dolphinscheduler.kubedoop.dev",
-				labelComponentKey: "master",
-				labelRoleGroupKey: defaultRoleGroupName,
+				"dolphinscheduler.kubedoop.dev/cluster":    testClusterName,
+				"dolphinscheduler.kubedoop.dev/role":       "master",
+				"dolphinscheduler.kubedoop.dev/role-group": defaultRoleGroupName,
 			}))
+			for key, value := range svc.Spec.Selector {
+				Expect(res.StatefulSet.Spec.Template.Labels).To(HaveKeyWithValue(key, value))
+			}
 		})
 
 		It("uses the role-specific metrics port", func() {
@@ -313,18 +576,33 @@ var _ = Describe("DolphinSchedulerRoleGroupHandler", func() {
 
 		It("keeps the legacy container name and carries the start script in the command", func() {
 			Expect(container.Name).To(Equal("master-server"))
-			Expect(container.Command).To(HaveLen(6))
-			Expect(container.Command[:5]).To(Equal(expectedShell))
-			script := container.Command[5]
+			script := roleScript(container.Command)
 			Expect(script).To(ContainSubstring("prepare_signal_handlers"))
-			Expect(script).To(ContainSubstring("master-server/bin/start.sh &"))
+			Expect(script).To(ContainSubstring(`master-server/bin/start.sh "$@" &`))
 			Expect(script).To(ContainSubstring("wait_for_termination $!"))
 			// The Vector shutdown-marker lines are gone (native sidecar).
 			Expect(script).NotTo(ContainSubstring("_vector/shutdown"))
 			// The start block appears exactly once.
-			Expect(strings.Count(script, "bin/start.sh &")).To(Equal(1))
+			Expect(strings.Count(script, `bin/start.sh "$@" &`)).To(Equal(1))
 			// Args belong to the user's cliOverrides alone now.
 			Expect(container.Args).To(BeEmpty())
+		})
+
+		It("forwards role-group cliOverrides to the product start script", func() {
+			group := cr.Spec.Master.RoleGroups[defaultRoleGroupName]
+			group.OverridesSpec = &commonsv1alpha1.OverridesSpec{
+				CliOverrides: []string{"--spring.profiles.active=prod", "--server.port=6789"},
+			}
+			cr.Spec.Master.RoleGroups[defaultRoleGroupName] = group
+			c := newFakeClient()
+			decl := declareRole(ctx, handler, c, cr, dolphinv1alpha1.RoleMaster)
+			buildCtx := newBuildContext(cr, dolphinv1alpha1.RoleMaster, decl)
+			res, err := handler.BuildResources(ctx, c, cr, buildCtx)
+			Expect(err).NotTo(HaveOccurred())
+
+			got := res.StatefulSet.Spec.Template.Spec.Containers[0]
+			Expect(got.Args).To(Equal(group.CliOverrides))
+			Expect(roleScript(got.Command)).To(ContainSubstring(`master-server/bin/start.sh "$@" &`))
 		})
 
 		It("renders the exact legacy env list plus the product default env", func() {
@@ -351,10 +629,13 @@ var _ = Describe("DolphinSchedulerRoleGroupHandler", func() {
 				"MASTER_TASK_COMMIT_INTERVAL",
 				"MASTER_TASK_COMMIT_RETRYTIMES",
 				zkConnectStringEnvName,
+				"SPRING_DATASOURCE_USERNAME",
+				"SPRING_DATASOURCE_PASSWORD",
 				// From the derived contribution (also present via envFrom "<cluster>-envs").
 				"SPRING_JACKSON_TIME_ZONE",
 				"TZ",
 			}))
+			Expect(container.Env).To(ContainElements(databaseCredentialEnv(cr)))
 
 			Expect(container.Env[0].Value).To(Equal("-Xms512m -Xmx512m -Xmn256m"))
 
@@ -435,7 +716,7 @@ var _ = Describe("DolphinSchedulerRoleGroupHandler", func() {
 			Expect(err).NotTo(HaveOccurred())
 			container := res.StatefulSet.Spec.Template.Spec.Containers[0]
 			Expect(container.Name).To(Equal("alerter-server"))
-			Expect(container.Command[len(container.Command)-1]).To(ContainSubstring("alert-server/bin/start.sh &"))
+			Expect(roleScript(container.Command)).To(ContainSubstring(`alert-server/bin/start.sh "$@" &`))
 			Expect(container.VolumeMounts[0].MountPath).To(
 				Equal("/kubedoop/dolphinscheduler/alert-server/conf/common.properties"))
 		})
@@ -473,6 +754,117 @@ var _ = Describe("DolphinSchedulerRoleGroupHandler", func() {
 			res, err := handler.BuildResources(ctx, c, cr, buildCtx)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res.ConfigMap.Data["common.properties"]).To(ContainSubstring("data.basedir.path=/custom\n"))
+		})
+	})
+
+	Describe("S3 configuration", func() {
+		It("delivers SecretClass credentials through CSI without writing them to the ConfigMap", func() {
+			cr.Spec.ClusterConfig.S3 = &s3v1alpha1.S3BucketSpec{
+				BucketName: testS3BucketName,
+				Connection: &s3v1alpha1.S3BucketConnectionSpec{
+					Inline: &s3v1alpha1.S3ConnectionSpec{
+						Host:      "minio",
+						Port:      9000,
+						Region:    testS3DefaultRegion,
+						PathStyle: true,
+						Credentials: &commonsv1alpha1.Credentials{
+							SecretClass: "s3-credentials",
+						},
+					},
+				},
+			}
+			c := newFakeClient()
+			decl := declareRole(ctx, handler, c, cr, dolphinv1alpha1.RoleMaster)
+			buildCtx := newBuildContext(cr, dolphinv1alpha1.RoleMaster, decl)
+			res, err := handler.BuildResources(ctx, c, cr, buildCtx)
+			Expect(err).NotTo(HaveOccurred())
+
+			properties := res.ConfigMap.Data[dolphinv1alpha1.DolphinCommonPropertiesName]
+			Expect(properties).To(ContainSubstring("resource.storage.type=S3\n"))
+			Expect(properties).To(ContainSubstring("resource.aws.region=" + testS3DefaultRegion + "\n"))
+			Expect(properties).To(ContainSubstring("resource.aws.s3.bucket.name=" + testS3BucketName + "\n"))
+			Expect(properties).To(ContainSubstring("resource.aws.s3.endpoint=http://minio:9000\n"))
+			Expect(properties).NotTo(ContainSubstring("resource.aws.access.key.id="))
+			Expect(properties).NotTo(ContainSubstring("resource.aws.secret.access.key="))
+
+			container := res.StatefulSet.Spec.Template.Spec.Containers[0]
+			script := roleScript(container.Command)
+			Expect(script).To(ContainSubstring(
+				`AWS_ACCESS_KEY_ID="$(cat "/kubedoop/secret/s3-credentials/ACCESS_KEY")"`))
+			Expect(script).To(ContainSubstring(`export ` + s3AccessKeyEnvName + `="$AWS_ACCESS_KEY_ID"`))
+			Expect(script).To(ContainSubstring(`export ` + s3SecretKeyEnvName + `="$AWS_SECRET_ACCESS_KEY"`))
+
+			Expect(container.VolumeMounts).To(ContainElement(corev1.VolumeMount{
+				Name:      opgos3.DefaultCredentialsVolumeName,
+				ReadOnly:  true,
+				MountPath: opgos3.CredentialsMountPath(opgos3.DefaultCredentialsVolumeName),
+			}))
+			var credentialsVolume *corev1.Volume
+			for i := range res.StatefulSet.Spec.Template.Spec.Volumes {
+				volume := &res.StatefulSet.Spec.Template.Spec.Volumes[i]
+				if volume.Name == opgos3.DefaultCredentialsVolumeName {
+					credentialsVolume = volume
+				}
+			}
+			Expect(credentialsVolume).NotTo(BeNil())
+			Expect(credentialsVolume.Ephemeral.VolumeClaimTemplate.Annotations).To(
+				HaveKeyWithValue(opgosecurity.SecretClassAnnotation, "s3-credentials"))
+		})
+
+		It("resolves a referenced TLS S3Connection through the framework", func() {
+			cr.Spec.ClusterConfig.S3 = &s3v1alpha1.S3BucketSpec{
+				BucketName: testS3BucketName,
+				Connection: &s3v1alpha1.S3BucketConnectionSpec{Reference: testS3ConnectionName},
+			}
+			connection := &s3v1alpha1.S3Connection{
+				ObjectMeta: metav1.ObjectMeta{Name: testS3ConnectionName, Namespace: testNamespace},
+				Spec: s3v1alpha1.S3ConnectionSpec{
+					Host:      testS3Host,
+					Port:      443,
+					Region:    testS3AlternateRegion,
+					PathStyle: true,
+					Tls:       &s3v1alpha1.Tls{},
+				},
+			}
+			c := newFakeClient(connection)
+			decl := declareRole(ctx, handler, c, cr, dolphinv1alpha1.RoleApi)
+			buildCtx := newBuildContext(cr, dolphinv1alpha1.RoleApi, decl)
+			res, err := handler.BuildResources(ctx, c, cr, buildCtx)
+			Expect(err).NotTo(HaveOccurred())
+
+			properties := res.ConfigMap.Data[dolphinv1alpha1.DolphinCommonPropertiesName]
+			Expect(properties).To(ContainSubstring("resource.aws.s3.endpoint=https://" + testS3Host + ":443\n"))
+			Expect(properties).To(ContainSubstring("resource.aws.region=" + testS3AlternateRegion + "\n"))
+		})
+
+		It("rejects virtual-host addressing that DolphinScheduler cannot honor", func() {
+			cr.Spec.ClusterConfig.S3 = &s3v1alpha1.S3BucketSpec{
+				BucketName: testS3BucketName,
+				Connection: &s3v1alpha1.S3BucketConnectionSpec{Inline: &s3v1alpha1.S3ConnectionSpec{
+					Host: testS3Host,
+				}},
+			}
+
+			_, err := handler.DeclareRoles(ctx, newFakeClient(), cr)
+			Expect(err).To(MatchError(ContainSubstring("S3 pathStyle must be true")))
+		})
+
+		It("rejects an S3 custom CA until JVM trust material can be provisioned", func() {
+			cr.Spec.ClusterConfig.S3 = &s3v1alpha1.S3BucketSpec{
+				BucketName: testS3BucketName,
+				Connection: &s3v1alpha1.S3BucketConnectionSpec{Inline: &s3v1alpha1.S3ConnectionSpec{
+					Host:      testS3Host,
+					PathStyle: true,
+					Tls: &s3v1alpha1.Tls{Verification: &commonsv1alpha1.TLSVerificationSpec{
+						Server: &commonsv1alpha1.ServerVerification{CACert: &commonsv1alpha1.CACert{
+							SecretClass: "company-ca",
+						}},
+					}},
+				}},
+			}
+
+			_, err := handler.DeclareRoles(ctx, newFakeClient(), cr)
+			Expect(err).To(MatchError(ContainSubstring("S3 TLS custom CA SecretClass is not supported")))
 		})
 	})
 
@@ -536,9 +928,10 @@ var _ = Describe("DolphinSchedulerRoleGroupHandler", func() {
 
 			// The credentials-export prologue precedes exactly one start block (the legacy api
 			// rendering duplicated the block).
-			script := container.Command[len(container.Command)-1]
-			Expect(script).To(HavePrefix("export SECURITY_AUTHENTICATION_LDAP_USERNAME"))
-			Expect(strings.Count(script, "bin/start.sh &")).To(Equal(1))
+			script := roleScript(container.Command)
+			Expect(script).To(HavePrefix("SECURITY_AUTHENTICATION_LDAP_USERNAME"))
+			Expect(script).NotTo(ContainSubstring("echo"))
+			Expect(strings.Count(script, `bin/start.sh "$@" &`)).To(Equal(1))
 
 			// The bind-credentials CSI volume is mounted read-only at the legacy path.
 			var ldapMount *corev1.VolumeMount
