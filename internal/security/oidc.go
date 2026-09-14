@@ -2,11 +2,11 @@ package security
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"emperror.dev/errors"
 	authv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/authentication/v1alpha1"
+	"github.com/zncdatadev/operator-go/pkg/sidecar"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -37,6 +37,17 @@ func (o *OidcAuthenticationConfigGenerator) Generate() (map[string]interface{}, 
 	if o.AuthType != OIDC {
 		return nil, errors.NewWithDetails("authentication type is not OIDC", "actual type", o.AuthType)
 	}
+	if o.Provider == nil || o.Provider.OIDC == nil {
+		return nil, errors.New("OIDC provider cannot be nil")
+	}
+	if o.OidcCredentialSecret == nil {
+		return nil, errors.New("OIDC credential secret is required")
+	}
+	secretName := strings.TrimSpace(o.OidcCredentialSecret.Secret)
+	if secretName == "" {
+		return nil, errors.New("OIDC credential secret name is required")
+	}
+
 	var oidcMetadataExtractor OidcProviderMetadataExtractor
 	switch providerHint := o.IdentityProviderHint; providerHint {
 	case Keycloak:
@@ -52,7 +63,7 @@ func (o *OidcAuthenticationConfigGenerator) Generate() (map[string]interface{}, 
 		return corev1.EnvVarSource{
 			SecretKeyRef: &corev1.SecretKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{
-					Name: o.OidcCredentialSecret.Secret,
+					Name: secretName,
 				},
 				Key: secretKey,
 			},
@@ -120,12 +131,7 @@ func (k *KeycloakMetadata) UserInfoUri() string {
 
 // issuer
 func getIssuer(oidcProvider *authv1alpha1.OIDCProvider) string {
-	schme := GetScheme(oidcProvider)
-	host := oidcProvider.Hostname
-	port := oidcProvider.Port
-	rootPath := oidcProvider.RootPath
-
-	return fmt.Sprintf("%s://%s:%s%s", schme, host, strconv.Itoa(port), rootPath)
+	return strings.TrimSuffix(sidecar.OIDCIssuerURL(oidcProvider), "/")
 }
 
 // get schema
@@ -139,6 +145,24 @@ func GetScheme(oidcProvider *authv1alpha1.OIDCProvider) string {
 // is oidc provider enabled tls
 func IsTls(oidcProvider *authv1alpha1.OIDCProvider) bool {
 	return oidcProvider.TLS != nil
+}
+
+// validateOIDCTLS rejects verification modes DolphinScheduler cannot honor. A nil TLS block is
+// plain HTTP; HTTPS with the default Web PKI remains supported by the JVM trust store.
+func validateOIDCTLS(oidcProvider *authv1alpha1.OIDCProvider) error {
+	if oidcProvider == nil || oidcProvider.TLS == nil || oidcProvider.TLS.Verification == nil {
+		return nil
+	}
+
+	verification := oidcProvider.TLS.Verification
+	if verification.None != nil {
+		return errors.New("OIDC TLS verification mode none is not supported by DolphinScheduler 3.2.2")
+	}
+	if verification.Server != nil && verification.Server.CACert != nil &&
+		verification.Server.CACert.SecretClass != "" {
+		return errors.New("OIDC TLS custom CA SecretClass is not supported until JVM trust material can be provisioned")
+	}
+	return nil
 }
 
 // ----------------------------------github metadata-----------------------------

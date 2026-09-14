@@ -327,6 +327,60 @@ cleanup-chainsaw-e2e: ## Run the chainsaw cleanup
 		done; \
 	fi
 
+# A fixed pre-framework baseline makes the destructive upgrade/rollback contract reproducible.
+UPGRADE_BASELINE_REF ?= b4757336df1dc2b08815b3a62e2a3e47583251a3
+UPGRADE_REPOSITORY_ROOT := $(patsubst %/.git,%,$(shell git rev-parse --path-format=absolute --git-common-dir))
+UPGRADE_BASELINE_DIR ?= $(UPGRADE_REPOSITORY_ROOT)/.worktree/upgrade-baseline
+UPGRADE_BASELINE_IMAGE ?= dolphinscheduler-operator:upgrade-baseline
+UPGRADE_PRODUCT_IMAGE ?= quay.io/zncdatadev/dolphinscheduler@sha256:c463fdbf0a1321b35995c509c9d44b92e88140e865ee88ac9bd9bd6c8bb2af1
+UPGRADE_EVIDENCE_DIR ?= $(CURDIR)/target/upgrade-evidence
+# The checksum lock below names this exact OCI chart version.  Keeping the
+# version non-overridable prevents a command-line override from pulling an
+# artifact that the checked-in hashes do not describe.
+override UPGRADE_DEPENDENCY_VERSION := 0.0.0-dev
+UPGRADE_DEPENDENCY_DIR ?= $(CURDIR)/target/upgrade-dependencies
+UPGRADE_DEPENDENCY_LOCK ?= $(CURDIR)/hack/framework-upgrade-dependencies.sha256
+
+.PHONY: framework-upgrade-dependencies
+framework-upgrade-dependencies: ## Fetch the digest-locked dependency charts for the framework upgrade acceptance test.
+	@mkdir -p "$(UPGRADE_DEPENDENCY_DIR)"; \
+		while read -r checksum chart; do \
+			case "$$chart" in *-$(UPGRADE_DEPENDENCY_VERSION).tgz) ;; \
+				*) echo "Lock entry $$chart does not match $(UPGRADE_DEPENDENCY_VERSION)" >&2; exit 1 ;; \
+			esac; \
+			dep="$${chart%-$(UPGRADE_DEPENDENCY_VERSION).tgz}"; \
+			if ! printf '%s  %s\n' "$$checksum" "$(UPGRADE_DEPENDENCY_DIR)/$$chart" | sha256sum --check --status; then \
+				rm -f "$(UPGRADE_DEPENDENCY_DIR)/$$chart"; \
+				"$(HELM)" pull "oci://quay.io/kubedoopcharts/$$dep" \
+					--version "$(UPGRADE_DEPENDENCY_VERSION)" --destination "$(UPGRADE_DEPENDENCY_DIR)"; \
+			fi; \
+		done < "$(UPGRADE_DEPENDENCY_LOCK)"
+	@cd "$(UPGRADE_DEPENDENCY_DIR)" && sha256sum --check "$(UPGRADE_DEPENDENCY_LOCK)"
+
+.PHONY: framework-upgrade-e2e
+framework-upgrade-e2e: kustomize docker-build framework-upgrade-dependencies ## Verify Gen2b upgrade and rollback with retained workflows, database state and PVCs on a fresh kind cluster.
+	@clusters="$$($(KIND) get clusters)" || exit 1; \
+		if printf '%s\n' "$$clusters" | grep -Fxq "$(CHAINSAW_CLUSTER)"; then \
+			echo "Use a fresh cluster name; inspect/delete the previous test cluster first." >&2; exit 1; \
+		fi
+	$(MAKE) setup-chainsaw-cluster OPERATOR_DEPENDS=
+	@for dep in $(OPERATOR_DEPENDS); do \
+		"$(HELM)" upgrade --install --create-namespace --namespace kubedoop-operators \
+			--kubeconfig "$(CHAINSAW_KUBECONFIG)" --wait "$$dep" \
+			"$(UPGRADE_DEPENDENCY_DIR)/$$dep-$(UPGRADE_DEPENDENCY_VERSION).tgz"; \
+		done
+	@if [ ! -d "$(UPGRADE_BASELINE_DIR)" ]; then \
+		git worktree add --detach "$(UPGRADE_BASELINE_DIR)" "$(UPGRADE_BASELINE_REF)"; \
+	fi
+	@test "$$(git -C "$(UPGRADE_BASELINE_DIR)" rev-parse HEAD)" = "$$(git rev-parse "$(UPGRADE_BASELINE_REF)")"
+	@test -z "$$(git -C "$(UPGRADE_BASELINE_DIR)" status --porcelain)"
+	$(MAKE) -C "$(UPGRADE_BASELINE_DIR)" docker-build IMG="$(UPGRADE_BASELINE_IMAGE)"
+	KUBECONFIG="$(abspath $(CHAINSAW_KUBECONFIG))" CHAINSAW_CLUSTER="$(CHAINSAW_CLUSTER)" \
+		UPGRADE_BASELINE_DIR="$(UPGRADE_BASELINE_DIR)" UPGRADE_BASELINE_IMAGE="$(UPGRADE_BASELINE_IMAGE)" \
+		UPGRADE_EVIDENCE_DIR="$(UPGRADE_EVIDENCE_DIR)" UPGRADE_DEPENDENCY_LOCK="$(UPGRADE_DEPENDENCY_LOCK)" \
+		UPGRADE_PRODUCT_IMAGE="$(UPGRADE_PRODUCT_IMAGE)" IMG="$(IMG)" PRODUCT_VERSION="$(PRODUCT_VERSION)" \
+		bash hack/test-framework-upgrade.sh
+
 .PHONY: cleanup-chainsaw-cluster
 cleanup-chainsaw-cluster: ## Tear down the Kind cluster used for chainsaw e2e tests
 	$(KIND) delete cluster --name $(CHAINSAW_CLUSTER)
