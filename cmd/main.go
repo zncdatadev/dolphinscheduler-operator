@@ -29,10 +29,14 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -40,6 +44,9 @@ import (
 	"github.com/zncdatadev/dolphinscheduler-operator/internal/controller"
 	authv1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/authentication/v1alpha1"
 	commonsv1alph1 "github.com/zncdatadev/operator-go/pkg/apis/commons/v1alpha1"
+	s3v1alpha1 "github.com/zncdatadev/operator-go/pkg/apis/s3/v1alpha1"
+	opcommon "github.com/zncdatadev/operator-go/pkg/common"
+	"github.com/zncdatadev/operator-go/pkg/reconciler"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	// +kubebuilder:scaffold:imports
 )
@@ -55,8 +62,8 @@ func init() {
 	utilruntime.Must(dolphinschedulerv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 	utilruntime.Must(commonsv1alph1.AddToScheme(scheme))
-	// +kubebuilder:scaffold:scheme
 	utilruntime.Must(authv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(s3v1alpha1.AddToScheme(scheme))
 }
 
 func main() {
@@ -119,10 +126,6 @@ func main() {
 		// can access the metrics endpoint. The RBAC are configured in 'config/rbac/kustomization.yaml'. More info:
 		// https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.1/pkg/metrics/filters#WithAuthenticationAndAuthorization
 		metricsServerOptions.FilterProvider = filters.WithAuthenticationAndAuthorization
-
-		// TODO(user): If CertDir, CertName, and KeyName are not specified, controller-runtime will automatically
-		// generate self-signed certificates for the metrics server. While convenient for development and testing,
-		// this setup is not recommended for production.
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -132,28 +135,99 @@ func main() {
 		LeaderElection:         enableLeaderElection,
 		WebhookServer:          webhookServer,
 		LeaderElectionID:       "935091a9.kubedoop.dev",
-		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
-		// when the Manager ends. This requires the binary to immediately end when the
-		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
-		// speeds up voluntary leader transitions as the new leader don't have to wait
-		// LeaseDuration time first.
-		//
-		// In the default scaffold provided, the program ends immediately after
-		// the manager stops, so would be fine to enable this option. However,
-		// if you are doing or is intended to do any operation such as perform cleanups
-		// after the manager stops then its usage might be unsafe.
-		// LeaderElectionReleaseOnCancel: true,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
-	if err = (&controller.DolphinschedulerClusterReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Log:    setupLog,
-	}).SetupWithManager(mgr); err != nil {
+	// Cheap start-up insurance: the product config type must stay foldable (it currently only
+	// embeds the commons RoleGroupConfigSpec, which validates clean).
+	if err := reconciler.ValidateProductConfigType[dolphinschedulerv1alpha1.ConfigSpec](); err != nil {
+		setupLog.Error(err, "product config type is not foldable")
+		os.Exit(1)
+	}
+
+	// The extension registry runs the cluster extension that provisions the "<cluster>-envs"
+	// ConfigMap and the create-once DB schema init Job before any role group (plus the
+	// Deployment-to-StatefulSet upgrade guard).
+	extensionRegistry := opcommon.NewExtensionRegistry[*dolphinschedulerv1alpha1.DolphinschedulerCluster]()
+	extensionRegistry.RegisterClusterExtension(controller.NewClusterExtension(mgr.GetScheme()))
+
+	roleGroupHandler := controller.NewDolphinSchedulerRoleGroupHandler(mgr.GetScheme())
+
+	dolphinReconciler, err := reconciler.NewGenericReconciler(
+		&reconciler.GenericReconcilerConfig[*dolphinschedulerv1alpha1.DolphinschedulerCluster]{
+			Client: mgr.GetClient(),
+			// Uncached: refreshes the resourceVersion after a conflicting status write, which
+			// the informer cache is by definition too stale to serve.
+			APIReader: mgr.GetAPIReader(),
+			Scheme:    mgr.GetScheme(),
+			// operator-go's Recorder field is the (deprecated) record.EventRecorder; the
+			// replacement GetEventRecorder returns the incompatible events.EventRecorder.
+			Recorder:         mgr.GetEventRecorderFor("dolphinscheduler-cluster-controller"), //nolint:staticcheck
+			RoleGroupHandler: roleGroupHandler,
+			// The handler declares the four roles; the reconciler resolves images and folds the
+			// config defaults from the catalog.
+			RoleProvider: roleGroupHandler,
+			ImageResolution: reconciler.ImageResolution{
+				ProductName: dolphinschedulerv1alpha1.DefaultProductName,
+				Defaults:    controller.ProductImageDefaults(),
+			},
+			RoleGroupResolver: reconciler.RoleGroupResolverFunc[*dolphinschedulerv1alpha1.DolphinschedulerCluster](
+				controller.ResolveRoleGroup),
+			// The workload pods' permissions, bound to the derived ServiceAccount
+			// ("dolphinschedulercluster-<cluster>"): the registry discovery ConfigMap read.
+			WorkloadRBACRules: func(_ *dolphinschedulerv1alpha1.DolphinschedulerCluster) []rbacv1.PolicyRule {
+				return []rbacv1.PolicyRule{{
+					APIGroups: []string{""},
+					Resources: []string{"configmaps"},
+					Verbs:     []string{"get", "list", "watch"},
+				}}
+			},
+			Dependencies: func(cr *dolphinschedulerv1alpha1.DolphinschedulerCluster) []reconciler.Dependency {
+				var deps []reconciler.Dependency
+				if cc := cr.Spec.ClusterConfig; cc != nil {
+					if cc.ZookeeperConfigMapName != "" {
+						deps = append(deps, reconciler.Dependency{
+							Kind: reconciler.DependencyConfigMap,
+							Name: cc.ZookeeperConfigMapName,
+						})
+					}
+					if cc.Database != nil && cc.Database.CredentialsSecret != "" {
+						deps = append(deps, reconciler.Dependency{
+							Kind: reconciler.DependencySecret,
+							Name: cc.Database.CredentialsSecret,
+						})
+					}
+					for _, authentication := range cc.Authentication {
+						if authentication.Oidc != nil && authentication.Oidc.Secret != "" {
+							deps = append(deps, reconciler.Dependency{
+								Kind: reconciler.DependencySecret,
+								Name: authentication.Oidc.Secret,
+							})
+						}
+					}
+				}
+				return deps
+			},
+			Prototype:         &dolphinschedulerv1alpha1.DolphinschedulerCluster{},
+			ExtensionRegistry: extensionRegistry,
+		})
+	if err != nil {
+		setupLog.Error(err, "unable to create reconciler", "controller", "DolphinschedulerCluster")
+		os.Exit(1)
+	}
+
+	if err := dolphinReconciler.SetupWithManagerOpts(mgr, reconciler.SetupWithManagerOptions{
+		// The extension-owned kinds: watched for out-of-band edits. The framework registers the
+		// Role/RoleBinding watches itself when WorkloadRBACRules is set.
+		ExtraOwns: []ctrlclient.Object{
+			&batchv1.Job{},
+			&corev1.Secret{},
+		},
+		Watches: controller.ReferenceWatches(mgr.GetClient()),
+	}); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DolphinschedulerCluster")
 		os.Exit(1)
 	}

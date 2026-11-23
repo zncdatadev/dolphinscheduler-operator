@@ -2,12 +2,13 @@ package util
 
 import (
 	"context"
+	"net/url"
 	"strings"
 
 	"emperror.dev/errors"
-	"github.com/zncdatadev/operator-go/pkg/client"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -25,10 +26,9 @@ type DatabaseConfig struct {
 	DbName   string
 }
 
-func NewDataBaseExtractor(client *client.Client, connectionString *string) *DataBaseExtractor {
+func NewDataBaseExtractor(client ctrlclient.Client, connectionString *string) *DataBaseExtractor {
 	return &DataBaseExtractor{
 		ConnectionString: connectionString,
-		Ctx:              context.Background(),
 		Client:           client,
 	}
 }
@@ -37,8 +37,7 @@ type DataBaseExtractor struct {
 	ConnectionString    *string
 	SecretReferenceName *string
 	Namespace           *string
-	Ctx                 context.Context
-	Client              *client.Client
+	Client              ctrlclient.Client
 }
 
 func (d *DataBaseExtractor) CredentialsInSecret(secretRefName string, namespace string) *DataBaseExtractor {
@@ -57,7 +56,7 @@ func (d *DataBaseExtractor) ExtractDatabaseInfo(ctx context.Context) (*DatabaseC
 		return nil, err
 	}
 
-	if err := d.setCredentials(dbInfo); err != nil {
+	if err := d.setCredentials(ctx, dbInfo); err != nil {
 		return nil, err
 	}
 
@@ -65,13 +64,28 @@ func (d *DataBaseExtractor) ExtractDatabaseInfo(ctx context.Context) (*DatabaseC
 }
 
 func (d *DataBaseExtractor) parseConnectionString() (*DatabaseConfig, error) {
-	parts := strings.Split(*d.ConnectionString, ":")
-	if len(parts) < 3 {
-		return nil, errors.New("invalid connection string")
+	databaseURL, err := parseDatabaseURL(*d.ConnectionString)
+	if err != nil {
+		return nil, err
+	}
+	if databaseURL.Hostname() == "" {
+		return nil, errors.New("database connection string host is empty")
+	}
+	if strings.Trim(databaseURL.Path, "/") == "" {
+		return nil, errors.New("database connection string database name is empty")
 	}
 
-	dbInfo := &DatabaseConfig{}
-	dbInfo.DbType = parts[1]
+	host, port, err := GetDatabaseHost(*d.ConnectionString)
+	if err != nil {
+		return nil, err
+	}
+
+	dbInfo := &DatabaseConfig{
+		DbType: databaseURL.Scheme,
+		Host:   host,
+		Port:   port,
+		DbName: strings.TrimPrefix(databaseURL.Path, "/"),
+	}
 
 	driver, err := GetDatabaseDriver(dbInfo.DbType)
 	if err != nil {
@@ -79,53 +93,37 @@ func (d *DataBaseExtractor) parseConnectionString() (*DatabaseConfig, error) {
 	}
 	dbInfo.Driver = driver
 
-	hostParts := strings.Split(parts[2], "/")
-	if len(hostParts) < 2 {
-		return nil, errors.New("invalid connection string")
-	}
-	dbInfo.Host = hostParts[2]
-
-	portParts := strings.Split(parts[3], "/")
-	dbInfo.Port = portParts[0]
-
-	dbParts := strings.Split(portParts[1], "?")
-	dbInfo.DbName = dbParts[0]
-
 	return dbInfo, nil
 }
 
-func (d *DataBaseExtractor) setCredentials(dbInfo *DatabaseConfig) error {
+func (d *DataBaseExtractor) setCredentials(ctx context.Context, dbInfo *DatabaseConfig) error {
 	if d.SecretReferenceName != nil {
-		return d.setCredentialsFromSecret(dbInfo)
+		return d.setCredentialsFromSecret(ctx, dbInfo)
 	}
 	return d.setCredentialsFromConnectionString(dbInfo)
 }
 
-func (d *DataBaseExtractor) setCredentialsFromSecret(dbInfo *DatabaseConfig) error {
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: *d.Namespace,
-			Name:      *d.SecretReferenceName,
-		},
-	}
+func (d *DataBaseExtractor) setCredentialsFromSecret(ctx context.Context, dbInfo *DatabaseConfig) error {
+	secret := &corev1.Secret{}
 
 	details := map[string]interface{}{
 		"namespace":   d.Namespace,
 		"secret_name": *d.SecretReferenceName,
 	}
 
-	if err := d.Client.GetWithObject(d.Ctx, secret); err != nil {
+	key := types.NamespacedName{Namespace: *d.Namespace, Name: *d.SecretReferenceName}
+	if err := d.Client.Get(ctx, key, secret); err != nil {
 		return errors.WrapWithDetails(err, "failed to get database secret", details)
 	}
 
 	secretData := secret.Data
-	if username, ok := secretData[ConnectionStringAuthUser]; ok {
+	if username, ok := secretData[ConnectionStringAuthUser]; ok && len(username) > 0 {
 		dbInfo.Username = string(username)
 	} else {
 		return errors.NewWithDetails("database username is empty", details)
 	}
 
-	if password, ok := secretData[ConnectionStringAuthPass]; ok {
+	if password, ok := secretData[ConnectionStringAuthPass]; ok && len(password) > 0 {
 		dbInfo.Password = string(password)
 	} else {
 		return errors.NewWithDetails("database password is empty", details)
@@ -135,23 +133,22 @@ func (d *DataBaseExtractor) setCredentialsFromSecret(dbInfo *DatabaseConfig) err
 }
 
 func (d *DataBaseExtractor) setCredentialsFromConnectionString(dbInfo *DatabaseConfig) error {
-	parts := strings.Split(*d.ConnectionString, "?")
-	if len(parts) < 2 {
-		return errors.New("database credential is empty")
+	databaseURL, err := parseDatabaseURL(*d.ConnectionString)
+	if err != nil {
+		return err
 	}
 
-	query := strings.Split(parts[1], "&")
-	for _, q := range query {
-		kv := strings.Split(q, "=")
-		if len(kv) != 2 {
-			continue
-		}
-		if kv[0] == "user" || kv[0] == "username" {
-			dbInfo.Username = kv[1]
-		}
-		if kv[0] == ConnectionStringAuthPass {
-			dbInfo.Password = kv[1]
-		}
+	query := databaseURL.Query()
+	dbInfo.Username = query.Get("user")
+	if dbInfo.Username == "" {
+		dbInfo.Username = query.Get(ConnectionStringAuthUser)
+	}
+	if dbInfo.Username == "" {
+		return errors.New("database username is empty")
+	}
+	dbInfo.Password = query.Get(ConnectionStringAuthPass)
+	if dbInfo.Password == "" {
+		return errors.New("database password is empty")
 	}
 
 	return nil
@@ -170,14 +167,60 @@ func GetDatabaseDriver(dbType string) (string, error) {
 	}
 }
 
-func GetDatabaseHost(connectionString string) (host string, port string) {
-	// eg. jdbc:postgresql://127.0.0.1:5432/dolphinscheduler?user=root&password=root
-	hostPort := strings.Split(connectionString, "//")[1]
-	hostPort = strings.Split(hostPort, "/")[0]
-	hosts := strings.Split(hostPort, ":")
-	if len(hosts) == 2 {
-		host = hosts[0]
-		port = hosts[1]
+func GetDatabaseHost(connectionString string) (host string, port string, err error) {
+	databaseURL, err := parseDatabaseURL(connectionString)
+	if err != nil {
+		return "", "", err
 	}
-	return
+	if databaseURL.Hostname() == "" {
+		return "", "", errors.New("database connection string host is empty")
+	}
+
+	host = databaseURL.Hostname()
+	port = databaseURL.Port()
+	if port != "" {
+		return host, port, nil
+	}
+
+	switch databaseURL.Scheme {
+	case "postgresql":
+		return host, "5432", nil
+	case "mysql":
+		return host, "3306", nil
+	default:
+		return "", "", errors.NewWithDetails(
+			"database connection string port is empty and no default is known",
+			"database_type", databaseURL.Scheme,
+		)
+	}
+}
+
+// CanonicalDatabaseTarget returns a stable, credential-free identity for the database endpoint
+// and database name. Fields are NUL-delimited to avoid ambiguous concatenation. The value is
+// intended to be hashed before it is persisted in Kubernetes metadata.
+func CanonicalDatabaseTarget(connectionString string) (string, error) {
+	extractor := &DataBaseExtractor{ConnectionString: &connectionString}
+	dbInfo, err := extractor.parseConnectionString()
+	if err != nil {
+		return "", err
+	}
+	return strings.Join([]string{
+		strings.ToLower(dbInfo.DbType),
+		strings.ToLower(dbInfo.Host),
+		dbInfo.Port,
+		dbInfo.DbName,
+	}, "\x00"), nil
+}
+
+// parseDatabaseURL deliberately discards net/url's error value: url.Error includes the original
+// URL and would leak legacy inline JDBC credentials through reconcile errors, status and events.
+func parseDatabaseURL(connectionString string) (*url.URL, error) {
+	if !strings.HasPrefix(connectionString, "jdbc:") {
+		return nil, errors.New("database connection string must start with jdbc:")
+	}
+	databaseURL, err := url.Parse(strings.TrimPrefix(connectionString, "jdbc:"))
+	if err != nil {
+		return nil, errors.New("failed to parse database connection string")
+	}
+	return databaseURL, nil
 }

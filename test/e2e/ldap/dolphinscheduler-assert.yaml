@@ -15,7 +15,7 @@ status:
   availableReplicas: 1
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: test-dolphinscheduler-api-default
 status:
@@ -23,7 +23,7 @@ status:
   availableReplicas: 1
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: test-dolphinscheduler-alert-default
 status:

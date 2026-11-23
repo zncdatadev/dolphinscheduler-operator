@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-06 | Updated: 2026-04-06 -->
+<!-- Generated: 2026-04-06 | Updated: 2026-09-14 -->
 
 # dolphinscheduler-operator
 
@@ -22,15 +22,9 @@ Manages Apache DolphinScheduler deployments on Kubernetes. Handles creation, con
 | `config/` | Kubernetes manifests and kustomize configs |
 | `deploy/` | Additional deployment manifests |
 | `hack/` | Build and code generation scripts |
-| `internal/common/` | Shared reconciliation helpers (config, container, workload, logging, vector) |
-| `internal/controller/` | Main controller and role sub-controllers |
-| `internal/controller/cluster/` | Cluster-level reconciliation (RBAC, init job, cluster resources) |
-| `internal/controller/master/` | Master role reconciliation |
-| `internal/controller/worker/` | Worker role reconciliation |
-| `internal/controller/api/` | API server role reconciliation |
-| `internal/controller/alerter/` | Alerter role reconciliation |
+| `internal/controller/` | Gen3 role catalog/handler, product config resolver, cluster extension, and tests |
 | `internal/security/` | Security and authentication helpers |
-| `pkg/` | Shared utilities |
+| `pkg/util/` | Database and properties helpers |
 | `test/` | E2E test suites |
 
 ## For AI Agents
@@ -39,10 +33,13 @@ Manages Apache DolphinScheduler deployments on Kubernetes. Handles creation, con
 - Standard Kubebuilder operator structure
 - Uses `operator-go` framework (`github.com/zncdatadev/operator-go`) for reconciliation
 - The single CRD is `DolphinschedulerCluster` (group `dolphinscheduler.kubedoop.dev`, version `v1alpha1`)
-- Four roles: `master`, `worker`, `api`, `alerter` — each has its own sub-directory under `internal/controller/`
-- Cluster-wide resources (RBAC, DB init job) are in `internal/controller/cluster/`
-- Shared helpers for config generation, container spec, workload building, and log aggregation are in `internal/common/`
+- Four roles: `master`, `worker`, `api`, `alerter` — all are declared by `DolphinSchedulerRoleGroupHandler`
+- `cmd/main.go` wires the CR directly to operator-go's `GenericReconciler`
+- `internal/controller/cluster_extension.go` owns the cluster env ConfigMap, DB init Job, and Gen2b upgrade guard
+- `internal/controller/product_config.go` supplies role defaults and the per-role-group derived config contribution
+- The framework owns standard per-role-group ConfigMaps, Services, StatefulSets, PodDisruptionBudgets, and workload RBAC
 - Run `make test` for unit tests
+- Run `make lint` for the lint gate
 - Run `make generate && make manifests` after changing API types
 - Run `make deploy` to deploy to cluster
 
@@ -53,19 +50,19 @@ Manages Apache DolphinScheduler deployments on Kubernetes. Handles creation, con
 - A database (PostgreSQL/MySQL) is also required (`clusterConfig.database`)
 
 ### Common Patterns
-- Controllers in `internal/controller/`
+- One `GenericReconciler` in `cmd/main.go`; product-specific reconciliation stays behind the role handler and cluster extension seams
 - CRDs use `v1alpha1` API version
 - Follows `operator-go` `GenericReconciler` pattern
-- `DolphinschedulerClusterReconciler` delegates to `cluster.ClusterReconciler` which registers role reconcilers
-- Each role reconciler is under its own package (e.g., `master`, `worker`, `api`, `alerter`)
-- Configuration is generated via `internal/common/config.go` and mounted as ConfigMaps
-- Vector log aggregation is supported via `internal/common/vector.go`
-- Authentication (LDAP) is supported via `internal/security/`
+- `DolphinSchedulerRoleGroupHandler` implements both `RoleProvider` and `RoleGroupHandler`
+- Configuration defaults are folded by operator-go and rendered by the handler from `RoleGroupBuildContext.MergedConfig`
+- Per-CR extensions are registered through an `ExtensionRegistry`; never store CR-specific state on the handler
+- Workload Pods use the framework-derived per-cluster ServiceAccount and RBAC
+- LDAP and OIDC authentication are resolved through `internal/security/`
 
 ## Dependencies
 
 ### Internal
-- `../operator-go` — Shared operator framework (`github.com/zncdatadev/operator-go v0.12.6`)
+- `operator-go` — Shared Gen3 operator framework (`github.com/zncdatadev/operator-go v0.13.0`)
 
 ### External
 - `sigs.k8s.io/controller-runtime` — Kubernetes controller runtime
